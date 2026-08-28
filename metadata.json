@@ -1,0 +1,8 @@
+{
+  "name": "Jaybi - L'intelligence dans votre poche",
+  "description": "Plateforme d'intelligence alimentaire pour optimiser le budget des foyers marocains.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
