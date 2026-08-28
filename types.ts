@@ -50,6 +50,18 @@ export type PriceReport = {
   status: 'pending' | 'verified' | 'rejected';
 };
 
+export type ProductSuggestion = {
+  id: string;
+  productId: string | null;
+  suggestedData: Record<string, any>;
+  comment?: string;
+  userEmail: string;
+  status: 'pending' | 'verified' | 'rejected';
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+};
+
 export type PromoCode = {
   id: string;
   code: string;

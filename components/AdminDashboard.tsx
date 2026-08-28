@@ -41,6 +41,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   isOpen, onClose, products, packs, users, orders, stores, promoCodes, brands, priceReports, auditLogs, config, language, onUpdateProducts, onUpdatePacks, onUpdateUsers, onUpdateStores, onUpdatePromoCodes, onUpdateBrands, onUpdatePriceReports, onAddLog, onUpdateConfig, currentUserEmail
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit'>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const statsCalculations = useMemo(() => {
     const totalVolume = orders.reduce((s, o) => s + o.total, 0);
@@ -93,7 +94,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <nav className="w-72 bg-white border-r border-slate-200 p-8 space-y-2 overflow-y-auto no-scrollbar">
+        <nav className={`${sidebarCollapsed ? 'w-16' : 'w-72'} bg-white border-r border-slate-200 p-4 space-y-2 overflow-y-auto no-scrollbar transition-all duration-300 shrink-0 relative`}>
+           <button onClick={() => setSidebarCollapsed(c => !c)} className="w-full mb-4 flex items-center justify-center py-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all" title={sidebarCollapsed ? 'Déplier' : 'Rabattre'}>
+              <span className={`text-lg font-black transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`}>⌄</span>
+           </button>
            {[
              { id: 'overview', label: 'Vue d\'ensemble', icon: <Icons.Stats /> },
              { id: 'reports', label: 'Signalements', icon: <Icons.Bell />, badge: pendingReportsCount },
@@ -106,11 +110,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              { id: 'subs', label: 'Abonnements', icon: <Icons.Lightning /> },
              { id: 'audit', label: 'Audit Log', icon: <Icons.Heart /> },
            ].map(tab => (
-             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`w-full flex items-center justify-between px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                <div className="flex items-center gap-4">
-                  {tab.icon} {tab.label}
+             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} title={sidebarCollapsed ? tab.label : undefined} className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                <div className={`flex items-center gap-4 ${sidebarCollapsed ? 'gap-0' : ''}`}>
+                  {tab.icon} {!sidebarCollapsed && tab.label}
                 </div>
-                {tab.badge !== undefined && tab.badge > 0 && (
+                {!sidebarCollapsed && tab.badge !== undefined && tab.badge > 0 && (
                   <span className="bg-rose-500 text-white text-[8px] px-2 py-0.5 rounded-full shadow-lg animate-pulse">{tab.badge}</span>
                 )}
              </button>

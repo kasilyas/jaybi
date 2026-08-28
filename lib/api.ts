@@ -5,7 +5,7 @@
  * Si le backend n'est pas joignable (ex: dev sans Docker), on retombe sur mockData.
  * Le JWT est stocké dans localStorage et envoyé en header Authorization.
  */
-import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem } from '../types';
+import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion } from '../types';
 
 const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:4000/api';
 const TOKEN_KEY = 'jaybi_jwt';
@@ -235,4 +235,18 @@ export async function fetchConfig(): Promise<PlatformConfig> {
 
 export async function updateConfig(data: Partial<PlatformConfig>): Promise<PlatformConfig> {
   return apiFetch<PlatformConfig>('/config', { method: 'PUT', body: JSON.stringify(data) });
+}
+
+// --- SUGGESTIONS (contributor) ---
+
+export async function fetchSuggestions(): Promise<ProductSuggestion[]> {
+  return apiFetch<ProductSuggestion[]>('/suggestions');
+}
+
+export async function createSuggestion(data: { productId?: string | null; suggestedData: Record<string, any>; comment?: string }): Promise<ProductSuggestion> {
+  return apiFetch<ProductSuggestion>('/suggestions', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function reviewSuggestion(id: string, status: 'verified' | 'rejected'): Promise<ProductSuggestion> {
+  return apiFetch<ProductSuggestion>(`/suggestions/${id}/review`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }

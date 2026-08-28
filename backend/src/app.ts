@@ -12,6 +12,7 @@ import { brandsRouter } from './routes/brands.routes.js';
 import { reportsRouter } from './routes/reports.routes.js';
 import { auditRouter } from './routes/audit.routes.js';
 import { configRouter } from './routes/config.routes.js';
+import { suggestionsRouter } from './routes/suggestions.routes.js';
 
 export function createApp() {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api/reports', reportsRouter);
   app.use('/api/audit', auditRouter);
   app.use('/api/config', configRouter);
+  app.use('/api/suggestions', suggestionsRouter);
 
   // 404
   app.use((_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));

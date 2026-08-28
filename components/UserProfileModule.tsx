@@ -11,6 +11,7 @@ interface UserProfileModuleProps {
   language: Language;
   onUpdateUser: (userData: Partial<User>) => void;
   onDeleteAccount: () => void;
+  onLogout: () => void;
   onClose: () => void;
   onViewOrder?: (order: Order) => void;
 }
@@ -18,10 +19,11 @@ interface UserProfileModuleProps {
 type PasswordStep = 'idle' | 'editing' | 'verifying' | 'success';
 
 export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
-  user, orders, savedIds, products, language, onUpdateUser, onDeleteAccount, onClose, onViewOrder
+  user, orders, savedIds, products, language, onUpdateUser, onDeleteAccount, onLogout, onClose, onViewOrder
 }) => {
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
+  const [collapsed, setCollapsed] = useState(false);
   
   const [formData, setFormData] = useState({
     name: user.name,
@@ -109,22 +111,32 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-20">
-      <header className={`flex items-center justify-between bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm ${isRTL ? 'flex-row-reverse' : ''}`}>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-20">
+      <header className={`flex items-center justify-between bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm ${isRTL ? 'flex-row-reverse' : ''}`}>
         <div className={`flex items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
-           <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl font-black text-white shadow-lg ${user.role === 'admin' ? 'bg-black' : user.isPremium ? 'bg-amber-500' : 'bg-emerald-600'}`}>
+           <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-2xl font-black text-white shadow-lg ${user.role === 'admin' ? 'bg-black' : user.isPremium ? 'bg-amber-500' : 'bg-emerald-600'}`}>
               {user.name[0]}
            </div>
            <div className={isRTL ? 'text-right' : 'text-left'}>
-              <h2 className="text-4xl font-black text-slate-900">{user.name}</h2>
+              <h2 className="text-2xl font-black text-slate-900">{user.name}</h2>
               <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.3em] mt-1">{user.role} • {user.tier}</p>
            </div>
         </div>
-        <button onClick={onClose} className="w-14 h-14 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all border border-slate-200">
-           <Icons.Minus />
-        </button>
+        <div className="flex items-center gap-2">
+           <button onClick={() => setCollapsed(c => !c)} className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-all border border-slate-200" title={collapsed ? (isRTL ? 'توسيع' : 'Déplier') : (isRTL ? 'طي' : 'Rabattre')}>
+              <span className={`text-xl font-black transition-transform duration-300 ${collapsed ? '' : 'rotate-180'}`}>⌄</span>
+           </button>
+           <button onClick={onClose} className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all border border-slate-200" title={isRTL ? 'إغلاق' : 'Fermer'}>
+              ✕
+           </button>
+        </div>
       </header>
 
+      {collapsed ? (
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{isRTL ? 'الملف مطوي — انقر على ⌄ لتوسيعه' : 'Profil rabattu — cliquez sur ⌄ pour déplier'}</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Colonne Gauche : Infos & Sécurité */}
         <section className="lg:col-span-1 space-y-6">
@@ -263,7 +275,14 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
               )}
            </div>
 
-           <button 
+           <button
+             onClick={onLogout}
+             className="w-full p-6 bg-slate-50 border border-slate-200 text-slate-700 rounded-[2rem] text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-3"
+           >
+              {t.logout}
+           </button>
+
+           <button
              onClick={onDeleteAccount}
              className="w-full p-6 bg-rose-50 border border-rose-100 text-rose-500 rounded-[2rem] text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3"
            >
@@ -370,6 +389,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
 
         </section>
       </div>
+      )}
     </div>
   );
 };

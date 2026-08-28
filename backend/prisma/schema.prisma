@@ -292,6 +292,26 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Suggestions de modification de fiches produits par les contributeurs.
+// Un contributor propose une modif (nom, marque, catégorie, prix, etc.),
+// un admin valide ou rejette. Si validée, la fiche produit est mise à jour.
+model ProductSuggestion {
+  id          String       @id @default(cuid())
+  productId   String?
+  // Si productId est null : suggestion de création d'un nouveau produit.
+  // Sinon : suggestion de modification d'un produit existant.
+  suggestedData Json      // { name, brand, category, image, unit, weight, prices? }
+  userEmail   String
+  comment     String?
+  status      ReportStatus @default(pending)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([productId])
+  @@map("product_suggestions")
+}
+
 // Configuration de la plateforme (singleton via id fixe).
 model AppConfig {
   id               String  @id @default("singleton")

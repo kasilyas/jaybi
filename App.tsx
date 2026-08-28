@@ -403,6 +403,7 @@ export default function App() {
               products={products} 
               language={language}
               onUpdateUser={(u) => { setUser({ ...user, ...u }); addAuditLog('USER_UPDATE', 'Mise à jour profil', 'info'); }}
+              onLogout={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('LOGOUT', 'Déconnexion', 'info'); }}
               onDeleteAccount={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('USER_DELETE', 'Compte supprimé', 'danger'); }}
               onClose={() => setShowProfile(false)}
               onViewOrder={(o) => setSelectedOrder(o)}
