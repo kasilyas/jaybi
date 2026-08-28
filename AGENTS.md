@@ -28,11 +28,15 @@
 - ⏳ S4 (vérif mot de passe), S5 (JWT/session), S6 (authz serveur) → **v0.2 backend**.
 
 ## Incohérences données — état v0.1
-- ✅ Corrigé : D1 (FK orders), D4 (soft-delete stores/promo), D5 (seeds promo/reports/audit),
-  D6 (snapshot prix commande), D11 (dates ISO), D13 (adresses seed).
-- ⏳ Reporté : D2 (IDs produits → UUID en v0.2), D3 (concept "National" à modéliser en BD),
-  D7 (savingsScore métier), D8 (devise), D9 (i18n chaînes hardcodées dans composants),
-  D10 (simulateDataSync → wiring v0.3), D12 (paiement CMI → v0.5), D14 (géoloc → v0.3).
+- ✅ Corrigé : D1 (FK orders), D3 (cohérence isNational vs prix city=National),
+  D4 (soft-delete stores/promo), D5 (seeds promo/reports/audit), D6 (snapshot prix commande),
+  D7 (savingsScore = économies réelles via originalPrice), D8 (helper devise formatPrice + suffixe i18n),
+  D9 (chaînes AuthModal + affichages prix ProductCard/CartDrawer/OrderSummary i18n),
+  D11 (dates ISO), D13 (adresses seed), D14 (géoloc dans ShoppingRoadmap).
+- ⏳ Reporté : D2 (IDs produits → UUID en v0.2), D10 (simulateDataSync → module scraping v0.3),
+  D12 (paiement CMI → v0.5).
+- 📌 Décision produit : la console admin reste FR-only pour le MVP (outil interne).
+  Le front-office client est full i18n (FR/EN/ES/ZH/AR).
 
 ## Roadmap
 - v0.2 — Backend Express/TS + Prisma + PostgreSQL + Auth JWT + Docker

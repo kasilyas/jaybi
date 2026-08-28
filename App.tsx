@@ -8,7 +8,7 @@ import {
 import { TRANSLATIONS, Icons, STORES } from './constants';
 import { MOCK_PRODUCTS, MOCK_PACKS, MOCK_USERS, MOCK_ORDERS, MOCK_PROMO_CODES, MOCK_PRICE_REPORTS, MOCK_AUDIT_LOGS } from './data/mockData';
 import { parseGroceryList, getSmartSearchSuggestions } from './services/geminiService';
-import { addToCart, updateCartQuantity, removeFromCart, cartTotalItems, computeSubtotal, snapshotCartPrices } from './lib/cart';
+import { addToCart, updateCartQuantity, removeFromCart, cartTotalItems, computeSubtotal, snapshotCartPrices, computeOrderSavings } from './lib/cart';
 import { validatePromo } from './lib/promo';
 
 import { ProductBrowserModule } from './components/ProductBrowserModule';
@@ -211,7 +211,8 @@ export default function App() {
     addAuditLog('ORDER_CREATED', `Commande ${newOrder.id} créée (${mode})`, 'success');
     
     if (user) {
-        setUser({ ...user, savingsScore: user.savingsScore + 10 });
+        const savings = computeOrderSavings(cart, products);
+        setUser({ ...user, savingsScore: user.savingsScore + savings });
     }
   };
 

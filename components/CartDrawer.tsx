@@ -132,7 +132,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{item.city}</p>
                        <div className="flex items-center gap-2 mt-1">
                          <p className={`text-xs font-black ${item.isDiscounted ? 'text-amber-600' : 'text-emerald-600'}`} dir="ltr">
-                           {item.currentPrice.toFixed(2)} DH
+                           {item.currentPrice.toFixed(2)} {t.currencySuffix}
                          </p>
                          {item.isDiscounted && <span className="text-[8px] font-bold text-amber-500 uppercase bg-amber-100 px-1 rounded">-Promo Pack</span>}
                        </div>
@@ -185,7 +185,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <Icons.Check className="text-emerald-500"/>
                           <div>
                              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Code Actif: {appliedPromo.code}</p>
-                             <p className="text-[8px] font-bold text-emerald-400 uppercase">-{appliedPromo.discountValue}{appliedPromo.discountType === 'percent' ? '%' : ' DH'}</p>
+                             <p className="text-[8px] font-bold text-emerald-400 uppercase">-{appliedPromo.discountValue}{appliedPromo.discountType === 'percent' ? '%' : ` ${t.currencySuffix}`}</p>
                           </div>
                        </div>
                        <button onClick={onRemovePromo} className="text-rose-400 hover:text-rose-600 p-2"><Icons.Minus className="scale-75"/></button>
@@ -201,19 +201,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
            <div className="space-y-2 mb-6">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
                  <span>Sous-total</span>
-                 <span dir="ltr">{subtotal.toFixed(2)} DH</span>
+                 <span dir="ltr">{subtotal.toFixed(2)} {t.currencySuffix}</span>
               </div>
               {appliedPromo && (
                 <div className="flex justify-between text-xs font-black text-emerald-500 uppercase tracking-widest">
                    <span>{t.promoDiscount}</span>
-                   <span dir="ltr">-{discountAmount.toFixed(2)} DH</span>
+                   <span dir="ltr">-{discountAmount.toFixed(2)} {t.currencySuffix}</span>
                 </div>
               )}
            </div>
            
            <div className={`flex justify-between text-3xl font-black text-slate-900 mb-8 pt-5 border-t border-slate-200 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <span>Total</span>
-              <span dir="ltr">{totalCost.toFixed(2)} DH</span>
+              <span dir="ltr">{totalCost.toFixed(2)} {t.currencySuffix}</span>
            </div>
 
            {!isLoggedIn ? (

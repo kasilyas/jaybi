@@ -102,7 +102,7 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
                              </div>
                           </div>
                           <span className={`text-xs font-black whitespace-nowrap ml-2 ${item.packName ? 'text-amber-600' : 'text-slate-900'}`} dir="ltr">
-                            {(item.price * item.quantity).toFixed(2)} DH
+                            {(item.price * item.quantity).toFixed(2)} {t.currencySuffix}
                           </span>
                        </div>
                      ))}
@@ -116,19 +116,19 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
            <div className="space-y-1 mb-6">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
                 <span>Sous-total</span>
-                <span dir="ltr">{subtotal.toFixed(2)} DH</span>
+                <span dir="ltr">{subtotal.toFixed(2)} {t.currencySuffix}</span>
               </div>
               {appliedPromo && (
                 <div className="flex justify-between text-xs font-black text-emerald-500 uppercase tracking-widest">
                   <span>{t.promoDiscount} ({appliedPromo.code})</span>
-                  <span dir="ltr">-{discount.toFixed(2)} DH</span>
+                  <span dir="ltr">-{discount.toFixed(2)} {t.currencySuffix}</span>
                 </div>
               )}
            </div>
            
            <div className="flex justify-between items-center mb-10">
               <span className="text-sm font-black text-slate-900 uppercase tracking-widest">Total Final</span>
-              <span className="text-4xl font-black text-slate-900" dir="ltr">{totalAmount.toFixed(2)} <span className="text-lg">DH</span></span>
+              <span className="text-4xl font-black text-slate-900" dir="ltr">{totalAmount.toFixed(2)} <span className="text-lg">{t.currencySuffix}</span></span>
            </div>
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -93,7 +93,19 @@ export const TRANSLATIONS: Record<Language, any> = {
     verifyEmailTitle: "Vérifiez votre email",
     verificationSubtitle: "Saisissez le code à 6 chiffres pour continuer.",
     confirmIdentity: "Confirmer mon identité",
-    wrongCode: "Code de vérification incorrect."
+    wrongCode: "Code de vérification incorrect.",
+    continueWithGoogle: "Continuer avec Google",
+    orByEmail: "Ou par email",
+    createAccount: "Créer mon compte",
+    alreadyMember: "Déjà membre ? Se connecter",
+    signUpPrompt: "Nouveau ? Créer un compte",
+    modifyEmailOrCancel: "Modifier l'email ou annuler",
+    identifying: "Identification...",
+    verifying: "Vérification...",
+    emailPlaceholder: "Email (ex: admin@qayess.io)",
+    passwordPlaceholder: "Mot de passe",
+    codePlaceholder: "—— ——",
+    currencySuffix: "DH"
   },
   en: {
     searchPlaceholder: "Search product, brand...",
@@ -185,7 +197,19 @@ export const TRANSLATIONS: Record<Language, any> = {
     verifyEmailTitle: "Verify your email",
     verificationSubtitle: "Enter the 6-digit code to continue.",
     confirmIdentity: "Confirm my identity",
-    wrongCode: "Incorrect verification code."
+    wrongCode: "Incorrect verification code.",
+    continueWithGoogle: "Continue with Google",
+    orByEmail: "Or by email",
+    createAccount: "Create my account",
+    alreadyMember: "Already a member? Log in",
+    signUpPrompt: "New here? Create an account",
+    modifyEmailOrCancel: "Edit email or cancel",
+    identifying: "Identifying...",
+    verifying: "Verifying...",
+    emailPlaceholder: "Email (e.g. admin@qayess.io)",
+    passwordPlaceholder: "Password",
+    codePlaceholder: "—— ——",
+    currencySuffix: "MAD"
   },
   es: {
     searchPlaceholder: "Buscar producto, marca...",
@@ -277,7 +301,19 @@ export const TRANSLATIONS: Record<Language, any> = {
     verifyEmailTitle: "Verifica tu email",
     verificationSubtitle: "Ingresa el código de 6 dígitos para continuar.",
     confirmIdentity: "Confirmar mi identidad",
-    wrongCode: "Código de verificación incorrecto."
+    wrongCode: "Código de verificación incorrecto.",
+    continueWithGoogle: "Continuar con Google",
+    orByEmail: "O por correo",
+    createAccount: "Crear mi cuenta",
+    alreadyMember: "¿Ya miembro? Iniciar sesión",
+    signUpPrompt: "¿Nuevo? Crear una cuenta",
+    modifyEmailOrCancel: "Editar correo o cancelar",
+    identifying: "Identificando...",
+    verifying: "Verificando...",
+    emailPlaceholder: "Correo (ej: admin@qayess.io)",
+    passwordPlaceholder: "Contraseña",
+    codePlaceholder: "—— ——",
+    currencySuffix: "MAD"
   },
   zh: {
     searchPlaceholder: "搜索产品，品牌...",
@@ -369,7 +405,19 @@ export const TRANSLATIONS: Record<Language, any> = {
     verifyEmailTitle: "验证您的电子邮件",
     verificationSubtitle: "输入 6 位数代码以继续。",
     confirmIdentity: "确认我的身份",
-    wrongCode: "验证码错误。"
+    wrongCode: "验证码错误。",
+    continueWithGoogle: "使用 Google 继续",
+    orByEmail: "或使用电子邮件",
+    createAccount: "创建我的账户",
+    alreadyMember: "已是会员？登录",
+    signUpPrompt: "新用户？创建账户",
+    modifyEmailOrCancel: "修改邮箱或取消",
+    identifying: "识别中...",
+    verifying: "验证中...",
+    emailPlaceholder: "邮箱（例如 admin@qayess.io）",
+    passwordPlaceholder: "密码",
+    codePlaceholder: "—— ——",
+    currencySuffix: "MAD"
   },
   ar: {
     searchPlaceholder: "ابحث عن منتج، علامة تجارية...",
@@ -461,7 +509,19 @@ export const TRANSLATIONS: Record<Language, any> = {
     verifyEmailTitle: "تحقق من بريدك الإلكتروني",
     verificationSubtitle: "أدخل الرمز المكون من 6 أرقام للمتابعة.",
     confirmIdentity: "تأكيد هويتي",
-    wrongCode: "رمز التحقق غير صحيح."
+    wrongCode: "رمز التحقق غير صحيح.",
+    continueWithGoogle: "المتابعة باستخدام Google",
+    orByEmail: "أو عبر البريد الإلكتروني",
+    createAccount: "إنشاء حسابي",
+    alreadyMember: "عضو بالفعل؟ تسجيل الدخول",
+    signUpPrompt: "جديد؟ أنشئ حسابًا",
+    modifyEmailOrCancel: "تعديل البريد أو إلغاء",
+    identifying: "جارٍ التحقق...",
+    verifying: "جارٍ التحقق...",
+    emailPlaceholder: "البريد (مثال: admin@qayess.io)",
+    passwordPlaceholder: "كلمة المرور",
+    codePlaceholder: "—— ——",
+    currencySuffix: "درهم"
   }
 };
 

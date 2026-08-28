@@ -152,7 +152,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
             <div className="space-y-3 mb-8">
                 <button onClick={() => handleProcessLogin('Google')} className="w-full py-3.5 px-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all relative">
                     {isLoading === 'Google' ? <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"/> : <Icons.Google />}
-                    <span>Continuer avec Google</span>
+                    <span>{t.continueWithGoogle}</span>
                 </button>
                 <div className="grid grid-cols-3 gap-3">
                     <button onClick={() => handleProcessLogin('Apple')} className="py-3.5 bg-black text-white rounded-2xl flex items-center justify-center hover:opacity-80 transition-all">
@@ -170,23 +170,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
             <div className="relative mb-8">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
                 <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
-                    <span className="px-4 bg-white text-slate-400">Ou par email</span>
+                    <span className="px-4 bg-white text-slate-400">{t.orByEmail}</span>
                 </div>
             </div>
 
             {/* Email Form */}
             <form onSubmit={handleSubmitCredentials} className="space-y-3">
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (ex: admin@qayess.io)" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
-              
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
+              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
+
               <button type="submit" disabled={!!isLoading} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-xl hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-widest text-[10px] mt-2 disabled:opacity-50">
-                {isLoading === 'email' ? 'Identification...' : (isSignUp ? "Créer mon compte" : "Se connecter")}
+                {isLoading === 'email' ? t.identifying : (isSignUp ? t.createAccount : t.login)}
               </button>
             </form>
 
             <div className="mt-8 text-center space-y-4">
               <button onClick={() => setIsSignUp(!isSignUp)} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline">
-                {isSignUp ? "Déjà membre ? Se connecter" : "Nouveau ? Créer un compte"}
+                {isSignUp ? t.alreadyMember : t.signUpPrompt}
               </button>
             </div>
 
@@ -241,14 +241,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
                   required 
                   value={verificationCode} 
                   onChange={(e) => setVerificationCode(e.target.value)} 
-                  placeholder="—— ——" 
+                  placeholder={t.codePlaceholder}
                   className="w-full bg-slate-50 border-2 border-slate-900 rounded-2xl py-6 px-5 text-3xl font-black text-center tracking-[0.5em] outline-none focus:ring-4 focus:ring-slate-900/5 transition-all" 
                 />
                 {error && <p className="text-center text-rose-500 text-[10px] font-black uppercase mt-2">{error}</p>}
               </div>
               
               <button type="submit" disabled={isLoading === 'verify'} className="w-full py-5 bg-slate-900 text-white font-black rounded-xl shadow-xl hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-[0.2em] text-[10px] disabled:opacity-50">
-                {isLoading === 'verify' ? 'Vérification...' : t.confirmIdentity}
+                {isLoading === 'verify' ? t.verifying : t.confirmIdentity}
               </button>
 
               <div className="text-center">
@@ -257,7 +257,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
                   onClick={() => { setStep('credentials'); setError(''); }} 
                   className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors"
                 >
-                  Modifier l'email ou annuler
+                  {t.modifyEmailOrCancel}
                 </button>
               </div>
             </form>

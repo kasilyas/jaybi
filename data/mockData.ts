@@ -11,7 +11,6 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'L',
     weight: 5,
-    isNational: true,
     prices: [
       { store: StoreName.MARJANE, city: 'Casablanca', price: 98.50, lastUpdated: '2024-05-24', available: true },
       { store: StoreName.CARREFOUR, city: 'Casablanca', price: 99.90, lastUpdated: '2024-05-24', available: true },
@@ -66,6 +65,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'kg',
     weight: 2,
+    isNational: true,
     prices: [{ store: StoreName.MARJANE, city: 'National', price: 12.00, lastUpdated: '2024-05-24', available: true }]
   },
   {
@@ -148,6 +148,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'g',
     weight: 110,
+    isNational: true,
     prices: [{ store: StoreName.BIM, city: 'National', price: 2.50, lastUpdated: '2024-05-24', available: true }]
   },
   {
@@ -180,6 +181,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'L',
     weight: 9,
+    isNational: true,
     prices: [{ store: StoreName.CARREFOUR, city: 'National', price: 34.00, lastUpdated: '2024-05-24', available: true }]
   },
   {
@@ -348,6 +350,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'unit',
     weight: 10,
+    isNational: true,
     prices: [{ store: StoreName.BIM, city: 'National', price: 18.00, lastUpdated: '2024-05-24', available: true }]
   },
   {
@@ -398,6 +401,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'unit',
     weight: 8,
+    isNational: true,
     prices: [{ store: StoreName.BIM, city: 'National', price: 7.50, lastUpdated: '2024-05-24', available: true }]
   },
   {
@@ -408,6 +412,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image: 'https://api.monpanier.ma/media/cache/sylius_shop_product_thumbnail/70/72/7072a7b8e1f0e4b8e1f0e4b8e1f0e4b8.png',
     unit: 'unit',
     weight: 10,
+    isNational: true,
     prices: [{ store: StoreName.MARJANE, city: 'National', price: 8.50, lastUpdated: '2024-05-24', available: true }]
   },
   {

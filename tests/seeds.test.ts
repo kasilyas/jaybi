@@ -100,4 +100,14 @@ describe('seeds - cohérence métier', () => {
       expect(valid).toContain(r.status);
     });
   });
+
+  it('isNational est cohérent avec la présence d un prix city=National (D3)', () => {
+    MOCK_PRODUCTS.forEach(p => {
+      const hasNationalPrice = p.prices.some(pr => pr.city === 'National');
+      // isNational (si défini) doit refléter exactement la présence d'un prix National
+      if (p.isNational !== undefined) {
+        expect(p.isNational).toBe(hasNationalPrice);
+      }
+    });
+  });
 });

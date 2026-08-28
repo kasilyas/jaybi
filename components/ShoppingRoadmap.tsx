@@ -22,6 +22,22 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
   const [tempPrice, setTempPrice] = useState<string>('');
   const [tempComment, setTempComment] = useState<string>('');
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
+  const [userPosition, setUserPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+
+  // D14 : géolocalisation pour le mode GPS courses
+  const handleLocate = () => {
+    if (!navigator.geolocation) { setGeoStatus('error'); return; }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('ok');
+      },
+      () => setGeoStatus('error'),
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
   
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
@@ -173,6 +189,10 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
                 </p>
              </div>
              <div className="flex items-center gap-3">
+               <button onClick={handleLocate} className={`h-10 px-3 flex items-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all print-hidden ${geoStatus === 'ok' ? 'bg-emerald-500 text-white' : geoStatus === 'error' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title="GPS">
+                 <Icons.Lightning className="scale-75" />
+                 {geoStatus === 'loading' ? '...' : geoStatus === 'ok' ? 'GPS' : geoStatus === 'error' ? 'GPS?' : 'GPS'}
+               </button>
                <button onClick={handleShare} className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print-hidden" title={t.share}>
                   <Icons.Share />
                </button>

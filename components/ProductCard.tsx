@@ -128,11 +128,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
            <div className={`flex items-center justify-between mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className={`flex flex-col ${isRTL ? 'items-end' : 'items-start'}`}>
                 {isPromoActive && (
-                  <span className="text-[10px] font-bold text-slate-400 line-through" dir="ltr">{bestPrice.originalPrice?.toFixed(2)} DH</span>
+                  <span className="text-[10px] font-bold text-slate-400 line-through" dir="ltr">{bestPrice.originalPrice?.toFixed(2)} {t.currencySuffix}</span>
                 )}
                 <div className="flex items-baseline gap-1">
                   <span className={`text-2xl font-black ${isPromoActive ? 'text-rose-600' : 'text-emerald-600'}`}>{bestPrice.price.toFixed(2)}</span>
-                  <span className="text-[10px] font-black text-slate-400">DH</span>
+                  <span className="text-[10px] font-black text-slate-400">{t.currencySuffix}</span>
                 </div>
               </div>
               

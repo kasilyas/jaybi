@@ -92,3 +92,17 @@ export function snapshotCartPrices(cart: CartItem[], products: Product[]): CartI
     return { ...item, unitPrice: price };
   });
 }
+
+/**
+ * Économies réalisées sur une commande = somme des (originalPrice - price) * qty
+ * pour les entrées de prix ayant un `originalPrice` promotionnel supérieur au prix.
+ * Reflète la valeur réelle apportée par la comparaison de prix (D7).
+ */
+export function computeOrderSavings(cart: CartItem[], products: Product[]): number {
+  return cart.reduce((sum, item) => {
+    const p = products.find(prod => prod.id === item.productId);
+    const entry = p?.prices.find(pr => pr.store === item.store);
+    if (!entry || !entry.originalPrice || entry.originalPrice <= entry.price) return sum;
+    return sum + (entry.originalPrice - entry.price) * item.quantity;
+  }, 0);
+}
