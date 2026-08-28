@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Product, StoreName, User, CartItem, Order, Pack, 
   Language, PromoCode, Store, Brand, PriceReport, 
@@ -10,6 +10,7 @@ import { MOCK_PRODUCTS, MOCK_PACKS, MOCK_USERS, MOCK_ORDERS, MOCK_PROMO_CODES, M
 import { parseGroceryList, getSmartSearchSuggestions } from './services/geminiService';
 import { addToCart, updateCartQuantity, removeFromCart, cartTotalItems, computeSubtotal, snapshotCartPrices, computeOrderSavings } from './lib/cart';
 import { validatePromo } from './lib/promo';
+import * as api from './lib/api';
 
 import { ProductBrowserModule } from './components/ProductBrowserModule';
 import { PackBrowserModule } from './components/PackBrowserModule';
@@ -94,6 +95,47 @@ export default function App() {
   // Pagination for main product browser
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+
+  // --- API BACKEND SYNC ---
+  // Au montage : on tente de charger les données depuis l'API backend.
+  // Si l'API n'est pas joignable, on garde les mockData (fallback transparent).
+  const [apiAvailable, setApiAvailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const healthy = await api.checkApiHealth();
+      if (cancelled) return;
+      if (!healthy) { setApiAvailable(false); return; }
+      setApiAvailable(true);
+      try {
+        const [prods, pks, strs, brs, promos, cfg] = await Promise.all([
+          api.fetchProducts(),
+          api.fetchPacks(),
+          api.fetchStores(),
+          api.fetchBrands(),
+          api.fetchPromoCodes(),
+          api.fetchConfig(),
+        ]);
+        if (cancelled) return;
+        if (prods.length) setProducts(prods);
+        if (pks.length) setPacks(pks);
+        if (strs.length) setStores(strs);
+        if (brs.length) setBrands(brs);
+        if (promos.length) setPromoCodes(promos);
+        if (cfg) setPlatformConfig(cfg);
+      } catch (e) {
+        console.warn('[api] chargement initial partiel, fallback mockData:', e);
+      }
+      // Restauration de session si un token JWT est présent
+      const token = api.getToken();
+      if (token) {
+        const me = await api.fetchMe();
+        if (me && !cancelled) setUser(me);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
@@ -182,7 +224,7 @@ export default function App() {
     return true;
   };
 
-  const finalizeOrder = (mode: 'delivery' | 'roadmap') => {
+  const finalizeOrder = async (mode: 'delivery' | 'roadmap') => {
     if (!user) {
       setIsAuthOpen(true);
       return;
@@ -191,6 +233,33 @@ export default function App() {
     const subtotal = computeSubtotal(cart, products);
     const itemsWithSnapshot = snapshotCartPrices(cart, products);
 
+    // Si l'API est disponible, on crée la commande côté backend (persistée).
+    if (apiAvailable) {
+      try {
+        const created = await api.createOrder({
+          items: cart.map(item => ({
+            ...item,
+            storeId: stores.find(s => s.name === item.store)?.id,
+          })),
+          mode,
+          paymentMethod: 'cod',
+          promoCodeId: appliedPromo?.id,
+        });
+        setOrders([created, ...orders]);
+        setCart([]);
+        setIsSummaryOpen(false);
+        setIsRoadmapOpen(false);
+        setAppliedPromo(null);
+        addAuditLog('ORDER_CREATED', `Commande ${created.id} créée (${mode})`, 'success');
+        const savings = computeOrderSavings(cart, products);
+        setUser({ ...user, savingsScore: user.savingsScore + savings });
+        return;
+      } catch (e) {
+        console.error('[api] erreur création commande, fallback local:', e);
+      }
+    }
+
+    // Fallback local (mockData)
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
       userId: user.id,
@@ -334,7 +403,7 @@ export default function App() {
               products={products} 
               language={language}
               onUpdateUser={(u) => { setUser({ ...user, ...u }); addAuditLog('USER_UPDATE', 'Mise à jour profil', 'info'); }}
-              onDeleteAccount={() => { setUser(null); setShowProfile(false); addAuditLog('USER_DELETE', 'Compte supprimé', 'danger'); }}
+              onDeleteAccount={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('USER_DELETE', 'Compte supprimé', 'danger'); }}
               onClose={() => setShowProfile(false)}
               onViewOrder={(o) => setSelectedOrder(o)}
             />

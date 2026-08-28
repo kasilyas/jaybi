@@ -57,6 +57,17 @@
 - Auth : JWT + OTP email. `DEV_BYPASS=true` → code fixe `123456` + auto-login test.
 - Tests backend : 22 tests (otp, jwt, middleware auth, intégration auth routes).
 
+## Connexion frontend -> backend (v0.2.1)
+- `lib/api.ts` : client API typé (fetch) pour tous les endpoints backend.
+- `App.tsx` : au montage, tente de charger les données depuis l'API. Si l'API
+  n'est pas joignable, retombe sur `mockData` (fallback transparent).
+- `AuthModal.tsx` : auth via backend (request-otp + verify-otp + dev-login).
+  Fallback local si l'API est indisponible.
+- JWT stocké dans `localStorage` (`jaybi_jwt`), envoyé en header `Authorization`.
+- `finalizeOrder` : crée la commande via `POST /api/orders` si l'API est dispo.
+- `VITE_API_URL` : URL du backend (défaut `http://localhost:4000/api`).
+- `tsconfig.json` racine : exclut `backend/` du typecheck frontend.
+
 ## Docker (v0.2)
 - `docker compose up -d db` — PostgreSQL (port hôte 5433).
 - `docker compose run --rm seed` — migrations + seed (one-shot).

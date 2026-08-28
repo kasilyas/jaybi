@@ -4,6 +4,7 @@ import { Icons, TRANSLATIONS } from '../constants';
 import { Language, User } from '../types';
 import { DEV_BYPASS, DEV_OTP_CODE, TEST_ACCOUNTS } from '../config';
 import { buildNewUser } from '../lib/auth';
+import * as api from '../lib/api';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -59,54 +60,94 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
   const generateCode = () => (DEV_BYPASS ? DEV_OTP_CODE : String(Math.floor(100000 + Math.random() * 900000)));
 
   // Auto-connexion d'un compte de test (DEV ONLY). Évite l'étape OTP.
-  const handleQuickTestLogin = (accountEmail: string) => {
-    const existing = users.find(u => u.email.toLowerCase() === accountEmail.toLowerCase() && !u.isDeleted);
-    if (existing) {
-      onLogin(existing);
+  const handleQuickTestLogin = async (accountEmail: string) => {
+    setIsLoading('test');
+    setError('');
+    try {
+      // Tente l'auto-connexion via l'API backend (dev-login)
+      const result = await api.devLogin(accountEmail);
+      onLogin(result.user);
       onClose();
+    } catch {
+      // Fallback : recherche dans la liste locale (mockData)
+      const existing = users.find(u => u.email.toLowerCase() === accountEmail.toLowerCase() && !u.isDeleted);
+      if (existing) {
+        onLogin(existing);
+        onClose();
+      } else {
+        setError('Compte de test introuvable');
+      }
     }
+    setIsLoading(null);
   };
 
-  const handleProcessLogin = (provider: string, overrideEmail?: string) => {
+  const handleProcessLogin = async (provider: string, overrideEmail?: string) => {
     setIsLoading(provider);
     const targetEmail = overrideEmail || email;
     setError('');
 
-    // 1. Chercher si l'utilisateur existe dans la base simulée (mockData)
-    const existingUser = users.find(u => u.email.toLowerCase() === targetEmail.toLowerCase() && !u.isDeleted);
+    // 1. Tente l'API backend (request-otp)
+    try {
+      const result = await api.requestOtp(targetEmail, password || undefined);
+      if (result.devCode) {
+        setSentCode(result.devCode);
+        if (DEV_BYPASS) {
+          console.log(`[DEV MODE] Code de vérification pour ${targetEmail} : ${result.devCode}`);
+        }
+      } else {
+        // En production, le code est envoyé par email — on utilise un placeholder
+        setSentCode(DEV_OTP_CODE);
+      }
+      // L'utilisateur sera créé/récupéré côté backend lors du verify-otp
+      setTempUser(buildNewUser(targetEmail, provider));
+      setStep('verification');
+      setIsLoading(null);
+      return;
+    } catch (e) {
+      console.warn('[auth] API non disponible, fallback local:', e);
+    }
 
-    // Génération du code OTP
+    // Fallback local (mockData) si l'API n'est pas joignable
+    const existingUser = users.find(u => u.email.toLowerCase() === targetEmail.toLowerCase() && !u.isDeleted);
     const code = generateCode();
     setSentCode(code);
-
-    // Log développeur UNIQUEMENT en mode bypass
     if (DEV_BYPASS) {
       console.log(`[DEV MODE] Code de vérification pour ${targetEmail} : ${code}`);
     }
-
     if (existingUser) {
-        // Flux Connexion : On prépare l'utilisateur existant
-        setTempUser(existingUser);
+      setTempUser(existingUser);
     } else {
-        // Flux Inscription : création du profil.
-        // @security Aucune escalade de rôle : tout nouvel inscrit est `customer` (free).
-        // Le rôle admin/premium ne s'obtient que via l'admin (backend v0.2) ou les seeds.
-        setTempUser(buildNewUser(targetEmail, provider));
+      setTempUser(buildNewUser(targetEmail, provider));
     }
-
-    // Transition vers l'étape de vérification après un délai simulé (UX)
     setTimeout(() => {
-        setStep('verification');
-        setIsLoading(null);
+      setStep('verification');
+      setIsLoading(null);
     }, 1000);
   };
 
-  const handleVerifyCode = (e: React.FormEvent) => {
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading('verify');
     setError('');
 
-    // Vérification stricte du code (ici "123456")
+    // 1. Tente la vérification via l'API backend
+    try {
+      const result = await api.verifyOtp(email, verificationCode, tempUser?.name);
+      onLogin(result.user);
+      onClose();
+      setIsLoading(null);
+      return;
+    } catch (err: any) {
+      // Si l'API a répondu avec une erreur métier (wrong code, etc.)
+      if (err?.status === 400 && err?.body?.error === 'WRONG_CODE') {
+        setError(t.wrongCode);
+        setIsLoading(null);
+        return;
+      }
+      console.warn('[auth] API verify non disponible, fallback local:', err);
+    }
+
+    // Fallback local : vérification stricte du code
     if (verificationCode === sentCode) {
       setTimeout(() => {
         if (tempUser) {
