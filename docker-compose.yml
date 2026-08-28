@@ -1,0 +1,73 @@
+# Jaybi - Orchestration locale (PostgreSQL + API + Web)
+# Usage :
+#   docker compose up -d db            # démarre la base
+#   docker compose run --rm seed       # applique migrations + seed (one-shot)
+#   docker compose up -d api web       # démarre l'API et le front
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jaybi-db
+    environment:
+      POSTGRES_USER: jaybi
+      POSTGRES_PASSWORD: jaybi
+      POSTGRES_DB: jaybi
+    ports:
+      - "5433:5432"
+    volumes:
+      - jaybi-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaybi -d jaybi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runner
+    container_name: jaybi-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://jaybi:jaybi@db:5432/jaybi?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-a-long-random-string}
+      JWT_EXPIRES_IN: 7d
+      DEV_BYPASS: "false"
+      PORT: "4000"
+      CORS_ORIGIN: "http://localhost:3000"
+    ports:
+      - "4000:4000"
+
+  # Service one-shot : applique les migrations et charge le seed.
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: seed
+    container_name: jaybi-seed
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: "postgresql://jaybi:jaybi@db:5432/jaybi?schema=public"
+      DEV_BYPASS: "true"
+    command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jaybi-web
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3000:4173"
+
+volumes:
+  jaybi-db-data:

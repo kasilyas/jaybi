@@ -1,0 +1,302 @@
+// Jaybi - Schéma de base de données (PostgreSQL)
+// Toutes les entités utilisent un soft-delete (isDeleted) conformément à la
+// règle de gestion #1 : "Zéro suppression physique".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  contributor
+  admin
+}
+
+enum Tier {
+  free
+  pack1
+  pack2
+  unlimited
+}
+
+enum Unit {
+  kg
+  L
+  unit
+  g
+  ml
+}
+
+enum CampaignTheme {
+  standard
+  black_friday
+  white_friday
+  halloween
+  ramadan
+  new_year
+  flash
+}
+
+enum PackType {
+  bundle
+  group_buy
+  sponsored
+}
+
+enum DiscountType {
+  percent
+  fixed
+}
+
+enum OrderStatus {
+  pending
+  picking
+  delivering
+  completed
+}
+
+enum OrderMode {
+  delivery
+  roadmap
+}
+
+enum PaymentMethod {
+  cod
+  cmi
+}
+
+enum ReportStatus {
+  pending
+  verified
+  rejected
+}
+
+enum AuditType {
+  info
+  warning
+  danger
+  success
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String?
+  role         Role      @default(customer)
+  tier         Tier      @default(free)
+  isPremium    Boolean   @default(false)
+  savingsScore Int       @default(0)
+  avatar       String?
+  isDeleted    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  addresses    Address[]
+  orders       Order[]
+
+  @@map("users")
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  label      String
+  details    String
+  city       String
+  isDefault  Boolean @default(false)
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logo      String   @default("")
+  color     String   @default("bg-slate-500")
+  isActive  Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  prices    PriceEntry[]
+  createdAt DateTime @default(now())
+
+  @@map("stores")
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  logo      String?
+  isDeleted Boolean   @default(false)
+  products  Product[]
+  createdAt DateTime  @default(now())
+
+  @@map("brands")
+}
+
+model Product {
+  id         String    @id @default(cuid())
+  name       String
+  brandId    String?
+  brand      Brand?    @relation(fields: [brandId], references: [id])
+  category   String
+  image      String    @default("")
+  unit       Unit      @default(unit)
+  weight     Float     @default(0)
+  isNational Boolean   @default(false)
+  isDeleted  Boolean   @default(false)
+  prices     PriceEntry[]
+  packs      PackProduct[]
+  reports    PriceReport[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("products")
+}
+
+model PriceEntry {
+  id                 String   @id @default(cuid())
+  productId          String
+  storeId            String
+  store              Store    @relation(fields: [storeId], references: [id])
+  city               String
+  price              Float
+  originalPrice      Float?
+  promotionExpiresAt DateTime?
+  lastUpdated        DateTime @default(now())
+  available          Boolean  @default(true)
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([storeId])
+  @@map("price_entries")
+}
+
+model Pack {
+  id                    String        @id @default(cuid())
+  name                  String
+  description           String        @default("")
+  price                 Float?
+  originalPrice         Float?
+  discountPercent       Float?
+  image                 String        @default("")
+  startsAt              DateTime?
+  expiresAt             DateTime?
+  theme                 CampaignTheme @default(standard)
+  type                  PackType      @default(bundle)
+  isSponsored           Boolean       @default(false)
+  supplierName          String?
+  groupBuyMinParticipants Int?
+  currentParticipants   Int?
+  isDeleted             Boolean       @default(false)
+  products              PackProduct[]
+  createdAt             DateTime      @default(now())
+
+  @@map("packs")
+}
+
+// Table de jointure Pack <-> Product (many-to-many explicite)
+model PackProduct {
+  packId    String
+  productId String
+  pack      Pack    @relation(fields: [packId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([packId, productId])
+  @@map("pack_products")
+}
+
+model PromoCode {
+  id             String       @id @default(cuid())
+  code           String       @unique
+  discountType   DiscountType @default(percent)
+  discountValue  Float
+  minOrderAmount Float?
+  maxUses        Int          @default(1)
+  currentUses    Int          @default(0)
+  startsAt       DateTime?
+  expiresAt      DateTime
+  isActive       Boolean      @default(true)
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@map("promo_codes")
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  total          Float
+  discountAmount Float?
+  promoCodeId    String?
+  promoCodeUsed  String?
+  deliveryFee    Float         @default(0)
+  status         OrderStatus   @default(pending)
+  mode           OrderMode     @default(roadmap)
+  paymentMethod  PaymentMethod @default(cod)
+  createdAt      DateTime      @default(now())
+  items          OrderItem[]
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  productName String // snapshot
+  storeName  String? // snapshot
+  city       String?
+  quantity   Int
+  unitPrice  Float?  // snapshot pour audit
+  packId     String?
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model PriceReport {
+  id            String       @id @default(cuid())
+  productId     String
+  productName   String
+  storeName     String
+  city          String
+  reportedPrice Float
+  comment       String?
+  userEmail     String
+  status        ReportStatus @default(pending)
+  timestamp     DateTime     @default(now())
+  product       Product      @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("price_reports")
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  action    String
+  user      String
+  userEmail String
+  details   String
+  type      AuditType @default(info)
+  timestamp DateTime  @default(now())
+
+  @@map("audit_logs")
+}
+
+// Configuration de la plateforme (singleton via id fixe).
+model AppConfig {
+  id               String  @id @default("singleton")
+  tiers            Json
+  activeMaintenance Boolean @default(false)
+
+  @@map("app_config")
+}
