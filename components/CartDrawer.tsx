@@ -89,9 +89,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   return (
     <div className={`fixed inset-0 z-[600] overflow-hidden ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-0 bottom-0 w-full max-w-lg bg-white shadow-4xl flex flex-col animate-in ${isRTL ? 'slide-in-from-left' : 'slide-in-from-right'} duration-500 border-l border-slate-200`}>
+      <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} top-0 bottom-0 w-full max-w-lg bg-white shadow-4xl flex flex-col animate-in ${isRTL ? 'slide-in-from-left' : 'slide-in-from-right'} duration-500 border-l border-slate-200 modal-fullscreen-mobile`}>
         
-        <header className="p-10 border-b border-slate-100 flex items-center justify-between">
+        <header className="p-4 sm:p-8 border-b border-slate-100 flex items-center justify-between">
           <div className={isRTL ? 'text-right' : 'text-left'}>
             <h2 className="text-3xl font-black text-slate-900">{t.cart}</h2>
             <p className="text-[11px] text-emerald-600 font-bold uppercase mt-1">
@@ -103,7 +103,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 space-y-4 no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 no-scrollbar">
           {cartData.length === 0 ? (
              <div className="h-full flex flex-col items-center justify-center opacity-30 text-center">
                 <Icons.Cart />
@@ -142,7 +142,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <button 
                           disabled={!!item.packId}
                           onClick={() => onUpdateQuantity(item.productId, item.store, item.city, -1, item.packId)} 
-                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${item.packId ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'text-slate-400 hover:text-slate-900 bg-slate-50'}`}
+                          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all touch-target ${item.packId ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'text-slate-400 hover:text-slate-900 bg-slate-50'}`}
                         >
                           {item.packId ? <Icons.Lock className="scale-75" /> : <Icons.Minus className="scale-75"/>}
                         </button>
@@ -152,14 +152,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <button 
                           disabled={!!item.packId}
                           onClick={() => onUpdateQuantity(item.productId, item.store, item.city, 1, item.packId)} 
-                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${item.packId ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'text-slate-400 hover:text-slate-900 bg-slate-50'}`}
+                          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all touch-target ${item.packId ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'text-slate-400 hover:text-slate-900 bg-slate-50'}`}
                         >
                           {item.packId ? <Icons.Lock className="scale-75" /> : <Icons.Plus className="scale-75"/>}
                         </button>
                       </div>
                       <button 
                         onClick={() => setDeletingItem({id: item.productId, store: item.store as string, city: item.city, packId: item.packId, packName: item.packName})}
-                        className={`text-[8px] font-black uppercase hover:underline ${item.packId ? 'text-amber-600' : 'text-rose-500'}`}
+                        className={`text-[10px] font-black uppercase hover:underline py-2 px-3 ${item.packId ? 'text-amber-600' : 'text-rose-500'}`}
                       >
                         {isRTL ? 'إزالة' : (item.packId ? 'Retirer Pack' : 'Retirer')}
                       </button>
@@ -188,7 +188,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                              <p className="text-[8px] font-bold text-emerald-400 uppercase">-{appliedPromo.discountValue}{appliedPromo.discountType === 'percent' ? '%' : ` ${t.currencySuffix}`}</p>
                           </div>
                        </div>
-                       <button onClick={onRemovePromo} className="text-rose-400 hover:text-rose-600 p-2"><Icons.Minus className="scale-75"/></button>
+                       <button onClick={onRemovePromo} className="text-rose-400 hover:text-rose-600 p-2.5 min-w-[36px] min-h-[36px] flex items-center justify-center"><Icons.Minus className="scale-75"/></button>
                     </div>
                  )}
                  {promoError && <p className="text-[9px] font-black text-rose-500 uppercase mt-2 ml-4">{t.invalidCode}</p>}
@@ -197,7 +197,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           )}
         </div>
 
-        <footer className="p-10 bg-slate-50 border-t border-slate-200">
+        <footer className="p-4 sm:p-8 bg-slate-50 border-t border-slate-200">
            <div className="space-y-2 mb-6">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
                  <span>Sous-total</span>

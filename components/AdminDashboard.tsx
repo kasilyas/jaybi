@@ -42,6 +42,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit'>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const statsCalculations = useMemo(() => {
     const totalVolume = orders.reduce((s, o) => s + o.total, 0);
@@ -84,18 +85,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1400] bg-slate-50 flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden font-sans">
-      <header className="bg-white border-b border-slate-200 px-10 py-6 flex items-center justify-between shadow-sm z-10 shrink-0">
-        <div className="flex items-center gap-6">
-          <div className="p-3 bg-slate-900 rounded-2xl"><Icons.Logo /></div>
-          <div><h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Qayess Control Tower</h2><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Console de Pilotage 3.0</p></div>
+    <div className="fixed inset-0 z-[1400] bg-slate-50 flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden font-sans safe-top safe-bottom">
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between shadow-sm z-20 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+          <div className="p-2 sm:p-3 bg-slate-900 rounded-xl sm:rounded-2xl shrink-0"><Icons.Logo /></div>
+          <div className="min-w-0"><h2 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tighter truncate">Qayess Control Tower</h2><p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 hidden sm:block">Console de Pilotage 3.0</p></div>
         </div>
-        <button onClick={onClose} className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Minus /></button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setMobileNavOpen(true)} className="lg:hidden w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all" title="Menu">
+            <span className="text-xl font-black">≡</span>
+          </button>
+          <button onClick={onClose} className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Minus /></button>
+        </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <nav className={`${sidebarCollapsed ? 'w-16' : 'w-72'} bg-white border-r border-slate-200 p-4 space-y-2 overflow-y-auto no-scrollbar transition-all duration-300 shrink-0 relative`}>
-           <button onClick={() => setSidebarCollapsed(c => !c)} className="w-full mb-4 flex items-center justify-center py-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all" title={sidebarCollapsed ? 'Déplier' : 'Rabattre'}>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Overlay mobile pour fermer la sidebar */}
+        {mobileNavOpen && <div className="lg:hidden fixed inset-0 bg-black/40 z-30" onClick={() => setMobileNavOpen(false)} />}
+
+        <nav className={`${sidebarCollapsed ? 'w-16' : 'w-72'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed lg:static inset-y-0 left-0 z-40 lg:z-auto bg-white border-r border-slate-200 p-4 space-y-2 overflow-y-auto no-scrollbar transition-all duration-300 shrink-0`}>
+           <button onClick={() => setSidebarCollapsed(c => !c)} className="w-full mb-4 flex items-center justify-center py-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all hidden lg:flex" title={sidebarCollapsed ? 'Déplier' : 'Rabattre'}>
               <span className={`text-lg font-black transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`}>⌄</span>
            </button>
            {[
@@ -110,7 +119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              { id: 'subs', label: 'Abonnements', icon: <Icons.Lightning /> },
              { id: 'audit', label: 'Audit Log', icon: <Icons.Heart /> },
            ].map(tab => (
-             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} title={sidebarCollapsed ? tab.label : undefined} className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+             <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setMobileNavOpen(false); }} title={sidebarCollapsed ? tab.label : undefined} className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-4 sm:px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all min-h-[44px] ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                 <div className={`flex items-center gap-4 ${sidebarCollapsed ? 'gap-0' : ''}`}>
                   {tab.icon} {!sidebarCollapsed && tab.label}
                 </div>
@@ -121,7 +130,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
            ))}
         </nav>
 
-        <main className="flex-1 overflow-y-auto p-12 bg-slate-50/30 no-scrollbar relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 bg-slate-50/30 no-scrollbar relative scroll-momentum">
            {activeTab === 'overview' && (
              <div className="space-y-10 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">

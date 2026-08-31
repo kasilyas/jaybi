@@ -180,7 +180,7 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
       `}</style>
 
       <div id="roadmap-container" className="min-h-screen bg-slate-50 print:bg-white">
-        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 px-8 py-6 shadow-sm print:static print:shadow-none print:border-b-2 print:border-black">
+        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-6 shadow-sm print:static print:shadow-none print:border-b-2 print:border-black">
           <div className={`max-w-4xl mx-auto flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
              <div className={isRTL ? 'text-right' : 'text-left'}>
                 <h2 className="text-2xl font-black text-slate-900">{t.roadmap}</h2>
@@ -189,14 +189,14 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
                 </p>
              </div>
              <div className="flex items-center gap-3">
-               <button onClick={handleLocate} className={`h-10 px-3 flex items-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all print-hidden ${geoStatus === 'ok' ? 'bg-emerald-500 text-white' : geoStatus === 'error' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title="GPS">
+               <button onClick={handleLocate} className={`h-11 px-3 flex items-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all print-hidden ${geoStatus === 'ok' ? 'bg-emerald-500 text-white' : geoStatus === 'error' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title="GPS">
                  <Icons.Lightning className="scale-75" />
                  {geoStatus === 'loading' ? '...' : geoStatus === 'ok' ? 'GPS' : geoStatus === 'error' ? 'GPS?' : 'GPS'}
                </button>
-               <button onClick={handleShare} className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print-hidden" title={t.share}>
+               <button onClick={handleShare} className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print-hidden" title={t.share}>
                   <Icons.Share />
                </button>
-               <button onClick={handlePrint} className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print-hidden" title={t.print}>
+               <button onClick={handlePrint} className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print-hidden" title={t.print}>
                   <Icons.Printer />
                </button>
                <button onClick={onClose} className="px-6 py-3 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl print-hidden">
@@ -206,7 +206,7 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-8 py-10 pb-40 space-y-10 print:pb-0 print:pt-4">
+        <main className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-10 pb-40 space-y-10 print:pb-0 print:pt-4">
           {Object.keys(roadmapData).length === 0 ? (
             <div className="text-center py-20 opacity-40">
                <p className="font-black uppercase tracking-widest text-sm">{t.emptyCart}</p>
@@ -266,14 +266,14 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
                                        <div className="flex gap-2 print-hidden">
                                           <button 
                                             onClick={(e) => { e.stopPropagation(); setReportingId(uniqueKey); setTempPrice(item.currentPrice.toString()); }}
-                                            className="p-2 bg-white border border-slate-200 rounded-xl text-amber-500 hover:bg-amber-50 hover:border-amber-200 transition-all shadow-sm"
+                                            className="p-2.5 min-w-[40px] min-h-[40px] bg-white border border-slate-200 rounded-xl text-amber-500 hover:bg-amber-50 hover:border-amber-200 transition-all shadow-sm flex items-center justify-center"
                                             title="Signaler erreur prix"
                                           >
                                             <Icons.Tag className="scale-75" />
                                           </button>
                                           <button 
                                             onClick={(e) => markUnavailable(e, item.productId, groupKey, storeName, city)}
-                                            className="p-2 bg-white border border-slate-200 rounded-xl text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm"
+                                            className="p-2.5 min-w-[40px] min-h-[40px] bg-white border border-slate-200 rounded-xl text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm flex items-center justify-center"
                                             title="Article indisponible"
                                           >
                                             <Icons.Minus className="scale-75" />
@@ -340,7 +340,7 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
         </main>
         
         {/* Footer sticky action */}
-        <footer className="fixed bottom-0 left-0 right-0 p-8 bg-white/80 backdrop-blur-md border-t border-slate-200 print-hidden">
+        <footer className="fixed bottom-0 left-0 right-0 p-4 sm:p-8 bg-white/80 backdrop-blur-md border-t border-slate-200 print-hidden">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
              <div className={isRTL ? 'text-right' : 'text-left'}>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Progression</p>

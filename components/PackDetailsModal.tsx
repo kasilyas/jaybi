@@ -32,7 +32,7 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
   return (
     <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-[3rem] p-12 shadow-4xl animate-in zoom-in-95 overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-[3rem] p-5 sm:p-10 shadow-4xl animate-in zoom-in-95 overflow-hidden modal-fullscreen-mobile">
         
         <div className="flex items-center gap-8 mb-10">
            <div className="w-24 h-24 bg-slate-50 rounded-[2rem] flex items-center justify-center text-5xl shadow-inner border border-slate-100">
@@ -92,7 +92,7 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
            </button>
         </div>
         
-        <button onClick={onClose} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900 transition-colors">
+        <button onClick={onClose} className="absolute top-10 right-10 w-10 h-10 flex items-center justify-center text-slate-300 hover:text-slate-900 transition-colors">
            <Icons.Minus />
         </button>
       </div>

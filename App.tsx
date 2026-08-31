@@ -91,6 +91,7 @@ export default function App() {
 
   const [magicInput, setMagicInput] = useState('');
   const [isMagicLoading, setIsMagicLoading] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // Pagination for main product browser
   const [currentPage, setCurrentPage] = useState(1);
@@ -289,26 +290,27 @@ export default function App() {
     <div className={`min-h-screen bg-white text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       
       {/* --- HEADER --- */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
-         <div className="max-w-[1920px] mx-auto px-4 sm:px-8 h-20 flex items-center justify-between gap-4">
-            
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 safe-top">
+         <div className="max-w-[1920px] mx-auto px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
+
             {/* Left: Logo & Search */}
-            <div className="flex items-center gap-8 flex-1">
-               <div className="cursor-pointer" onClick={() => { setSearchQuery(''); setSelectedBrand(null); setLegalView(null); setShowProfile(false); }}>
+            <div className="flex items-center gap-4 sm:gap-8 flex-1 min-w-0">
+               <div className="cursor-pointer shrink-0" onClick={() => { setSearchQuery(''); setSelectedBrand(null); setLegalView(null); setShowProfile(false); }}>
                   <Icons.Logo />
                </div>
 
+               {/* Search desktop */}
                <div className="hidden lg:flex items-center gap-2 flex-1 max-w-xl relative">
                   <div className="absolute left-4 text-slate-400"><Icons.Search className="scale-75" /></div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     placeholder={t.searchPlaceholder}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all"
                   />
                   {suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
                        {suggestions.map((s, i) => (
                          <button key={i} onClick={() => { setSearchQuery(s); setSuggestions([]); }} className="w-full text-left px-5 py-3 hover:bg-slate-50 text-xs font-bold text-slate-600 border-b border-slate-50 last:border-0">
                            {s}
@@ -317,23 +319,28 @@ export default function App() {
                     </div>
                   )}
                </div>
+
+               {/* Search mobile toggle */}
+               <button onClick={() => setMobileSearchOpen(o => !o)} className="lg:hidden w-11 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0" title={t.search}>
+                  <Icons.Search className="scale-75" />
+               </button>
             </div>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                {/* Admin Button in Header */}
                {user?.role === 'admin' && (
-                 <button onClick={() => setIsAdminOpen(true)} className="hidden md:flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                 <button onClick={() => setIsAdminOpen(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm">
                    <Icons.Stats className="scale-75" />
-                   Console
+                   <span className="hidden sm:inline">Console</span>
                  </button>
                )}
 
-               <button onClick={() => setLanguage(l => l === 'fr' ? 'ar' : 'fr')} className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-black uppercase">
+               <button onClick={() => setLanguage(l => l === 'fr' ? 'ar' : 'fr')} className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-black uppercase">
                   {language === 'fr' ? 'AR' : 'FR'}
                </button>
-               
-               <button onClick={() => setIsCartOpen(true)} className="relative w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-slate-900/20">
+
+               <button onClick={() => setIsCartOpen(true)} className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-slate-900/20">
                   <Icons.Cart />
                   {cartTotal > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white">
@@ -357,6 +364,35 @@ export default function App() {
             </div>
          </div>
       </header>
+
+      {/* --- SEARCH MOBILE --- */}
+      {mobileSearchOpen && (
+        <div className="lg:hidden sticky top-16 z-30 bg-white border-b border-slate-100 px-4 py-3 safe-top">
+          <div className="flex items-center gap-2 relative">
+            <div className="absolute left-4 text-slate-400"><Icons.Search className="scale-75" /></div>
+            <input
+              type="text"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-12 pr-12 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all"
+            />
+            <button onClick={() => { setMobileSearchOpen(false); setSuggestions([]); }} className="absolute right-2 w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900">
+              ✕
+            </button>
+            {suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                {suggestions.map((s, i) => (
+                  <button key={i} onClick={() => { setSearchQuery(s); setSuggestions([]); setMobileSearchOpen(false); }} className="w-full text-left px-5 py-3 hover:bg-slate-50 text-xs font-bold text-slate-600 border-b border-slate-50 last:border-0">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-[1920px] mx-auto px-4 sm:px-8 py-8 min-h-[calc(100vh-80px)]">

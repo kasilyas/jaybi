@@ -376,7 +376,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
                            </div>
                            <button 
                              onClick={() => onViewOrder?.(order)}
-                             className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-slate-900 group-hover:shadow-md transition-all"
+                             className="w-11 h-11 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-slate-900 group-hover:shadow-md transition-all"
                            >
                               <Icons.ChevronRight />
                            </button>

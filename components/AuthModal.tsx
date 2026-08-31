@@ -172,7 +172,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
   return (
     <div className={`fixed inset-0 z-[1000] flex items-center justify-center p-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-[3rem] p-10 shadow-4xl animate-in zoom-in-95 overflow-hidden">
+      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-[3rem] p-6 sm:p-10 shadow-4xl animate-in zoom-in-95 overflow-hidden modal-fullscreen-mobile">
         
         {step === 'credentials' ? (
           <>
@@ -195,7 +195,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
                     {isLoading === 'Google' ? <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"/> : <Icons.Google />}
                     <span>{t.continueWithGoogle}</span>
                 </button>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     <button onClick={() => handleProcessLogin('Apple')} className="py-3.5 bg-black text-white rounded-2xl flex items-center justify-center hover:opacity-80 transition-all">
                         {isLoading === 'Apple' ? <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin"/> : <Icons.Apple />}
                     </button>
@@ -283,7 +283,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
                   value={verificationCode} 
                   onChange={(e) => setVerificationCode(e.target.value)} 
                   placeholder={t.codePlaceholder}
-                  className="w-full bg-slate-50 border-2 border-slate-900 rounded-2xl py-6 px-5 text-3xl font-black text-center tracking-[0.5em] outline-none focus:ring-4 focus:ring-slate-900/5 transition-all" 
+                  className="w-full bg-slate-50 border-2 border-slate-900 rounded-2xl py-6 px-5 text-2xl sm:text-3xl font-black text-center tracking-[0.3em] sm:tracking-[0.5em] outline-none focus:ring-4 focus:ring-slate-900/5 transition-all" 
                 />
                 {error && <p className="text-center text-rose-500 text-[10px] font-black uppercase mt-2">{error}</p>}
               </div>

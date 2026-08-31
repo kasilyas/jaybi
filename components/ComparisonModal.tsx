@@ -60,7 +60,7 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
                                <img src={p.image} className="w-full h-full object-contain mix-blend-multiply" alt="" />
                                <button 
                                   onClick={() => onRemove(p.id)}
-                                  className={`absolute -top-2 -right-2 w-7 h-7 bg-rose-500 text-white rounded-xl flex items-center justify-center shadow-lg transition-all hover:scale-110 z-30`}
+                                  className={`absolute -top-2 -right-2 w-9 h-9 bg-rose-500 text-white rounded-xl flex items-center justify-center shadow-lg transition-all hover:scale-110 z-30`}
                                >
                                   <Icons.Minus className="scale-75" />
                                </button>

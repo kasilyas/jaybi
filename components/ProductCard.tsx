@@ -66,27 +66,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const visual = CATEGORY_VISUALS[product.category] || CATEGORY_VISUALS['default'];
 
   return (
-    <div className={`bg-white border rounded-[2.5rem] p-5 flex flex-col hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative ${isComparing ? 'border-emerald-500 ring-4 ring-emerald-500/10 scale-[1.02]' : 'border-slate-100 shadow-sm'}`}>
-      
+    <div className={`card-hover bg-white border rounded-[2rem] p-4 sm:p-5 flex flex-col transition-all group relative overflow-hidden ${isComparing ? 'border-emerald-500 ring-4 ring-emerald-500/10 scale-[1.02]' : 'border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/40'}`}>
+
+      {/* Glow accent en arrière-plan selon catégorie */}
+      <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${visual.color} opacity-5 group-hover:opacity-10 transition-opacity duration-500`} />
+
       {/* Top Actions */}
-      <div className={`absolute top-6 ${isRTL ? 'right-6' : 'left-6'} z-20 flex flex-col gap-2`}>
-        <button 
+      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} z-20 flex flex-col gap-2`}>
+        <button
           onClick={(e) => { e.stopPropagation(); onToggleCompare(product.id); }}
-          className={`w-7 h-7 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm ${isComparing ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-300 hover:border-emerald-500 hover:text-emerald-500'}`}
+          className={`w-9 h-9 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm touch-target ${isComparing ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white/90 backdrop-blur border-slate-200 text-slate-300 hover:border-emerald-500 hover:text-emerald-500'}`}
         >
           <Icons.Compare className="w-3.5 h-3.5" />
         </button>
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onToggleSave(product.id); }}
-          className={`w-7 h-7 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm ${isSaved ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-slate-200 text-slate-300 hover:border-rose-500 hover:text-rose-500'}`}
+          className={`w-9 h-9 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm touch-target ${isSaved ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white/90 backdrop-blur border-slate-200 text-slate-300 hover:border-rose-500 hover:text-rose-500'}`}
         >
           <Icons.Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-white' : 'fill-none'}`} />
         </button>
       </div>
 
-      <div className={`absolute top-6 ${isRTL ? 'left-6' : 'right-6'} z-10`}>
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl shadow-sm border ${isPromoActive ? 'bg-rose-50 border-rose-100 text-rose-600' : isFresh ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${isPromoActive ? 'bg-rose-500' : isFresh ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+      <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} z-10`}>
+        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-md border ${isPromoActive ? 'bg-gradient-to-r from-rose-500 to-rose-600 border-rose-600 text-white' : isFresh ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${isPromoActive ? 'bg-white' : isFresh ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
           <span className="text-[9px] font-black uppercase tracking-tight">
             {isPromoActive ? `-${discountPercent}%` : isFresh ? t.freshPrice : t.verify}
           </span>
@@ -144,9 +147,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </div>
            </div>
 
-           <button 
+           <button
              onClick={(e) => { e.stopPropagation(); onAddToCart(product, bestPrice.store, bestPrice.city); }}
-             className={`w-full py-3.5 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200 mb-2`}
+             className={`w-full py-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:from-emerald-600 hover:to-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-300/50 mb-2`}
            >
              <Icons.Plus /> {t.addToCart}
            </button>
@@ -179,7 +182,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                           <span className="text-xs font-black text-slate-700">{price.price.toFixed(2)}</span>
                           <button 
                             onClick={(e) => { e.stopPropagation(); onAddToCart(product, price.store, price.city); }}
-                            className="w-6 h-6 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-colors"
+                            className="w-9 h-9 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-colors touch-target"
                           >
                              <Icons.Plus className="scale-75" />
                           </button>

@@ -26,10 +26,10 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   return (
     <div className={`fixed inset-0 z-[1300] flex items-center justify-center p-4 sm:p-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-[2.5rem] shadow-4xl flex flex-col max-h-[90vh] animate-in zoom-in-95 overflow-hidden">
+      <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-[2.5rem] shadow-4xl flex flex-col max-h-[90vh] animate-in zoom-in-95 overflow-hidden modal-fullscreen-mobile">
         
         {/* Header Produit */}
-        <div className="p-8 pb-0 flex flex-col items-center text-center">
+        <div className="p-5 sm:p-8 pb-0 flex flex-col items-center text-center">
            <div className="w-32 h-32 bg-slate-50 rounded-[2rem] p-6 shadow-inner border border-slate-100 mb-6 relative group">
               <img src={product.image} className="w-full h-full object-contain mix-blend-multiply transform transition-transform group-hover:scale-110" alt={product.name} />
               <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm">
@@ -44,7 +44,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
         </div>
 
         {/* Liste des Prix */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-3 no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-3 no-scrollbar">
            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 text-center">
              {language === 'ar' ? 'العروض المتوفرة' : 'Offres disponibles'} ({product.prices.length})
            </p>
@@ -87,7 +87,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
            })}
         </div>
 
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-colors">
+        <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-colors">
            <Icons.Minus />
         </button>
       </div>
