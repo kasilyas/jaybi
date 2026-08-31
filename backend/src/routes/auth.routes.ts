@@ -40,8 +40,9 @@ authRouter.post('/request-otp', async (req, res: Response) => {
   const { email } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
 
-  // Si l'utilisateur existe et a un mot de passe, on le vérifie avant l'OTP.
-  if (existing && existing.passwordHash && parsed.data.password) {
+  // Si l'utilisateur existe et a un mot de passe, on l'exige avant l'OTP.
+  if (existing && existing.passwordHash) {
+    if (!parsed.data.password) return res.status(401).json({ error: 'PASSWORD_REQUIRED' });
     const ok = await bcrypt.compare(parsed.data.password, existing.passwordHash);
     if (!ok) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
   }
@@ -73,10 +74,12 @@ authRouter.post('/verify-otp', async (req, res: Response) => {
   const key = email.toLowerCase();
   const entry = otpStore.get(key);
 
-  const expectedCode = env.devBypass ? DEV_OTP_CODE : entry?.code;
-  if (!expectedCode || entry?.expiresAt && entry.expiresAt < Date.now()) {
+  // En dev bypass, le code attendu est toujours 123456, MAIS on exige
+  // qu'une entrée OTP existe et ne soit pas expirée (anti-bypass sans request).
+  if (!entry || entry.expiresAt < Date.now()) {
     return res.status(400).json({ error: 'OTP_EXPIRED' });
   }
+  const expectedCode = env.devBypass ? DEV_OTP_CODE : entry.code;
   if (parsed.data.code !== expectedCode) {
     return res.status(400).json({ error: 'WRONG_CODE' });
   }

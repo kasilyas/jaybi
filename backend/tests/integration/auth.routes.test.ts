@@ -43,6 +43,7 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
   });
 
   it('POST /api/auth/verify-otp connecte un compte seedé (admin)', async () => {
+    await request(app).post('/api/auth/request-otp').send({ email: 'admin@qayess.io' });
     const r = await request(app)
       .post('/api/auth/verify-otp')
       .send({ email: 'admin@qayess.io', code: '123456' });
@@ -53,6 +54,7 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
 
   it('POST /api/auth/verify-otp crée un compte customer pour un nouvel email (anti-escalade)', async () => {
     const email = `newuser-${Date.now()}@test.com`;
+    await request(app).post('/api/auth/request-otp').send({ email });
     const r = await request(app)
       .post('/api/auth/verify-otp')
       .send({ email, code: '123456' });
@@ -62,6 +64,7 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
   });
 
   it('GET /api/auth/me avec token renvoie le profil', async () => {
+    await request(app).post('/api/auth/request-otp').send({ email: 'user@qayess.ma' });
     const login = await request(app)
       .post('/api/auth/verify-otp')
       .send({ email: 'user@qayess.ma', code: '123456' });
@@ -83,6 +86,7 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
   });
 
   it('POST /api/products avec token customer => 403 (anti-escalade)', async () => {
+    await request(app).post('/api/auth/request-otp').send({ email: 'user@qayess.ma' });
     const login = await request(app)
       .post('/api/auth/verify-otp')
       .send({ email: 'user@qayess.ma', code: '123456' });

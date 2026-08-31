@@ -63,34 +63,45 @@ ordersRouter.post('/', authenticate, async (req, res: Response) => {
 
   if (promoCodeId) {
     const promo = await prisma.promoCode.findUnique({ where: { id: promoCodeId } });
-    if (promo && promo.isActive && !promo.isDeleted && promo.currentUses < promo.maxUses) {
+    const now = new Date();
+    // Validation complète : actif, non supprimé, dates, montant min, uses
+    if (promo && promo.isActive && !promo.isDeleted
+        && promo.currentUses < promo.maxUses
+        && promo.startsAt && promo.startsAt <= now
+        && promo.expiresAt && promo.expiresAt >= now
+        && (!promo.minOrderAmount || total >= promo.minOrderAmount)) {
+      // Cap percent à 100%
+      const pct = promo.discountType === 'percent' ? Math.min(promo.discountValue, 100) : 0;
       discountAmount = promo.discountType === 'percent'
-        ? Math.round(total * promo.discountValue) / 100
+        ? Math.round(total * pct) / 100
         : Math.min(promo.discountValue, total);
       promoCodeUsed = promo.code;
       total = Math.max(0, total - (discountAmount ?? 0));
     }
   }
 
-  const order = await prisma.order.create({
-    data: {
-      userId: req.user!.sub,
-      total: total + deliveryFee,
-      discountAmount,
-      promoCodeId: promoCodeId ?? null,
-      promoCodeUsed: promoCodeUsed ?? null,
-      deliveryFee,
-      mode,
-      paymentMethod,
-      status: 'pending',
-      items: { create: orderItemsData },
-    },
-    include: { items: true },
+  // Transaction : création commande + incrément promo en atomique (anti race)
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.order.create({
+      data: {
+        userId: req.user!.sub,
+        total: total + deliveryFee,
+        discountAmount,
+        promoCodeId: promoCodeId ?? null,
+        promoCodeUsed: promoCodeUsed ?? null,
+        deliveryFee,
+        mode,
+        paymentMethod,
+        status: 'pending',
+        items: { create: orderItemsData },
+      },
+      include: { items: true },
+    });
+    if (promoCodeId && promoCodeUsed) {
+      await tx.promoCode.update({ where: { id: promoCodeId }, data: { currentUses: { increment: 1 } } });
+    }
+    return created;
   });
-
-  if (promoCodeId) {
-    await prisma.promoCode.update({ where: { id: promoCodeId }, data: { currentUses: { increment: 1 } } });
-  }
 
   await addAuditLog({ action: 'ORDER_CREATED', user: req.user!.email, userEmail: req.user!.email, details: `Commande ${order.id} créée (${mode})`, type: 'success' });
   res.status(201).json(serializeOrder(order));

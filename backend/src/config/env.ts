@@ -7,16 +7,29 @@ const required = (key: string, fallback?: string): string => {
   return v;
 };
 
+const nodeEnv = process.env.NODE_ENV ?? 'development';
+const isProduction = nodeEnv === 'production';
+
+// En production : JWT_SECRET obligatoire, pas de fallback.
+// En dev/test : fallback autorisé pour le confort local.
+const jwtSecret = isProduction
+  ? required('JWT_SECRET') // throw si manquant en prod
+  : required('JWT_SECRET', 'dev-secret-change-me');
+
+// DEV_BYPASS ne peut JAMAIS être true en production.
+// En dev/test : défaut true pour le confort local.
+const rawDevBypass = String(process.env.DEV_BYPASS ?? (isProduction ? 'false' : 'true')) === 'true';
+const devBypass = isProduction ? false : rawDevBypass;
+
 export const env = {
-  nodeEnv: process.env.NODE_ENV ?? 'development',
-  isDev: (process.env.NODE_ENV ?? 'development') !== 'production',
-  isTest: process.env.NODE_ENV === 'test',
+  nodeEnv,
+  isDev: !isProduction,
+  isTest: nodeEnv === 'test',
   port: Number(process.env.PORT ?? 4000),
   databaseUrl: required('DATABASE_URL'),
-  jwtSecret: required('JWT_SECRET', 'dev-secret-change-me'),
+  jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
-  // Bypass 2FA en dev/test : code fixe 123456, aucun envoi SMTP.
-  devBypass: String(process.env.DEV_BYPASS ?? 'true') === 'true',
+  devBypass,
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
   smtp: {
     host: process.env.SMTP_HOST,
