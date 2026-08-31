@@ -67,6 +67,8 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
   }
 
   const totalAmount = Math.max(0, subtotal - discount);
+  const deliveryFee = 20;
+  const totalWithDelivery = totalAmount + deliveryFee;
 
   return (
     <div className={`fixed inset-0 z-[1100] flex items-center justify-center p-4 sm:p-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -124,11 +126,15 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
                   <span dir="ltr">-{discount.toFixed(2)} {t.currencySuffix}</span>
                 </div>
               )}
+              <div className="flex justify-between text-xs font-bold text-slate-500">
+                <span>Livraison (domicile)</span>
+                <span dir="ltr">+{deliveryFee.toFixed(2)} {t.currencySuffix}</span>
+              </div>
            </div>
-           
+
            <div className="flex justify-between items-center mb-10">
               <span className="text-sm font-black text-slate-900 uppercase tracking-widest">Total Final</span>
-              <span className="text-4xl font-black text-slate-900" dir="ltr">{totalAmount.toFixed(2)} <span className="text-lg">{t.currencySuffix}</span></span>
+              <span className="text-4xl font-black text-slate-900" dir="ltr">{totalWithDelivery.toFixed(2)} <span className="text-lg">{t.currencySuffix}</span></span>
            </div>
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,7 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, PlatformConfig, User, Order, Pack, Language, AuditLog, Store, PromoCode, SubscriptionTier, Brand, PriceReport } from '../types';
 import { Icons } from '../constants';
+import * as api from '../lib/api';
 import { ProductModule } from './AdminProductModule';
 import { UserCRMModule } from './AdminUserModule';
 import { StoreModule } from './AdminStoreModule';
@@ -44,13 +45,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // --- API WIRING ---
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Données temps réel non fournies par App au montage (audit, orders).
+  // users est synchronisé via onUpdateUsers.
+  const [localAuditLogs, setLocalAuditLogs] = useState<AuditLog[]>(auditLogs);
+  const [localOrders, setLocalOrders] = useState<Order[]>(orders);
+
+  // Au montage / ouverture : on charge les données réelles depuis le backend.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [logs, usr, ords] = await Promise.all([
+          api.fetchAuditLogs().catch(() => null),
+          api.fetchUsers().catch(() => null),
+          api.fetchAllOrders().catch(() => null),
+        ]);
+        if (cancelled) return;
+        if (logs && logs.length) setLocalAuditLogs(logs);
+        if (usr && usr.length) onUpdateUsers(usr);
+        if (ords && ords.length) setLocalOrders(ords);
+      } catch (e) {
+        console.warn('[admin] chargement audit/users/orders échoué, fallback props:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Helper : exécute l'appel API puis applique la mise à jour locale.
+  // En cas d'échec API, on retombe sur la mise à jour locale seule (fallback).
+  const apiOp = async (op: () => Promise<unknown>, fallback: () => void, errMsg: string) => {
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      await op();
+    } catch (e: any) {
+      console.error(errMsg, e);
+      setApiError(e?.message || errMsg);
+    } finally {
+      fallback();
+      setApiLoading(false);
+    }
+  };
+
   const statsCalculations = useMemo(() => {
-    const totalVolume = orders.reduce((s, o) => s + o.total, 0);
-    const activeUserCount = new Set(orders.map(o => o.userId)).size;
+    const totalVolume = localOrders.reduce((s, o) => s + o.total, 0);
+    const activeUserCount = new Set(localOrders.map(o => o.userId)).size;
     const globalConversion = users.length > 0 ? (activeUserCount / users.length) * 100 : 0;
 
     const productCounts: Record<string, number> = {};
-    orders.forEach(o => o.items.forEach(item => {
+    localOrders.forEach(o => o.items.forEach(item => {
       productCounts[item.productId] = (productCounts[item.productId] || 0) + item.quantity;
     }));
     
@@ -65,13 +114,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const tierConversion = (Object.keys(config.tiers) as SubscriptionTier[]).map(tier => {
       const usersInTier = users.filter(u => u.tier === tier);
-      const activeInTier = usersInTier.filter(u => orders.some(o => o.userId === u.id)).length;
+      const activeInTier = usersInTier.filter(u => localOrders.some(o => o.userId === u.id)).length;
       const rate = usersInTier.length > 0 ? (activeInTier / usersInTier.length) * 100 : 0;
       return { tier, rate, count: usersInTier.length };
     });
 
     return { totalVolume, activeUserCount, globalConversion, popularProds, tierConversion };
-  }, [orders, users, products, config.tiers]);
+  }, [localOrders, users, products, config.tiers]);
 
   const stats = useMemo(() => [
     { label: 'Utilisateurs Totaux', value: users.length, icon: <Icons.Lightning />, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -92,6 +141,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="min-w-0"><h2 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tighter truncate">Qayess Control Tower</h2><p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 hidden sm:block">Console de Pilotage 3.0</p></div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {apiLoading && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-500">
+              <span className="w-3 h-3 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
+              Sync...
+            </div>
+          )}
           <button onClick={() => setMobileNavOpen(true)} className="lg:hidden w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all" title="Menu">
             <span className="text-xl font-black">≡</span>
           </button>
@@ -131,6 +186,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </nav>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 bg-slate-50/30 no-scrollbar relative scroll-momentum">
+           {apiError && (
+             <div className="mb-6 flex items-center justify-between gap-4 bg-rose-50 border border-rose-200 text-rose-700 px-5 py-3 rounded-2xl text-xs font-bold">
+               <span>⚠️ Erreur API : {apiError} — mise à jour locale appliquée.</span>
+               <button onClick={() => setApiError(null)} className="text-rose-400 hover:text-rose-700 text-sm font-black">✕</button>
+             </div>
+           )}
            {activeTab === 'overview' && (
              <div className="space-y-10 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -201,7 +262,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
            {activeTab === 'reports' && (
              <AdminReportsModule 
                reports={priceReports} 
-               onUpdateReports={onUpdatePriceReports}
+               onUpdateReports={(updated) => {
+                 // Détecte le signalement dont le statut a changé pour appeler l'API.
+                 const changed = updated.find(u => {
+                   const prev = priceReports.find(p => p.id === u.id);
+                   return prev && prev.status !== u.status;
+                 });
+                 if (changed) {
+                   apiOp(
+                     () => api.updateReportStatus(changed.id, changed.status),
+                     () => onUpdatePriceReports(updated),
+                     'Erreur mise à jour signalement'
+                   );
+                 } else {
+                   onUpdatePriceReports(updated);
+                 }
+               }}
                products={products}
                onAddLog={onAddLog}
              />
@@ -213,12 +289,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 brands={brands}
                 onSave={(p) => {
                   const exists = products.find(old => old.id === p.id);
-                  onUpdateProducts(exists ? products.map(old => old.id === p.id ? p : old) : [...products, p]);
-                  onAddLog(exists ? 'PRODUCT_UPDATE' : 'PRODUCT_CREATE', `Produit : ${p.name}`, exists ? 'info' : 'success');
+                  apiOp(
+                    () => exists ? api.updateProduct(p.id, p) : api.createProduct(p),
+                    () => {
+                      onUpdateProducts(exists ? products.map(old => old.id === p.id ? p : old) : [...products, p]);
+                      onAddLog(exists ? 'PRODUCT_UPDATE' : 'PRODUCT_CREATE', `Produit : ${p.name}`, exists ? 'info' : 'success');
+                    },
+                    'Erreur sauvegarde produit'
+                  );
                 }}
                 onDelete={(id) => {
-                  onUpdateProducts(products.map(p => p.id === id ? { ...p, isDeleted: true } : p));
-                  onAddLog('PRODUCT_DELETE', `Archivage produit ID: ${id}`, 'danger');
+                  apiOp(
+                    () => api.deleteProduct(id),
+                    () => {
+                      onUpdateProducts(products.map(p => p.id === id ? { ...p, isDeleted: true } : p));
+                      onAddLog('PRODUCT_DELETE', `Archivage produit ID: ${id}`, 'danger');
+                    },
+                    'Erreur suppression produit'
+                  );
                 }}
               />
            )}
@@ -228,12 +316,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 brands={brands}
                 onSave={(b) => {
                    const exists = brands.find(old => old.id === b.id);
-                   onUpdateBrands(exists ? brands.map(old => old.id === b.id ? b : old) : [...brands, b]);
-                   onAddLog(exists ? 'BRAND_UPDATE' : 'BRAND_CREATE', `Marque : ${b.name}`, exists ? 'info' : 'success');
+                   apiOp(
+                     () => exists ? api.updateBrand(b.id, b) : api.createBrand(b),
+                     () => {
+                       onUpdateBrands(exists ? brands.map(old => old.id === b.id ? b : old) : [...brands, b]);
+                       onAddLog(exists ? 'BRAND_UPDATE' : 'BRAND_CREATE', `Marque : ${b.name}`, exists ? 'info' : 'success');
+                     },
+                     'Erreur sauvegarde marque'
+                   );
                 }}
                 onDelete={(id) => {
-                   onUpdateBrands(brands.map(b => b.id === id ? { ...b, isDeleted: true } : b));
-                   onAddLog('BRAND_DELETE', `Archivage marque ID: ${id}`, 'danger');
+                   apiOp(
+                     () => api.deleteBrand(id),
+                     () => {
+                       onUpdateBrands(brands.map(b => b.id === id ? { ...b, isDeleted: true } : b));
+                       onAddLog('BRAND_DELETE', `Archivage marque ID: ${id}`, 'danger');
+                     },
+                     'Erreur suppression marque'
+                   );
                 }}
               />
            )}
@@ -243,12 +343,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 users={users} 
                 onSave={(u) => {
                   const exists = users.find(old => old.id === u.id);
-                  onUpdateUsers(exists ? users.map(old => old.id === u.id ? u : old) : [...users, u]);
-                  onAddLog(exists ? 'USER_UPDATE' : 'USER_CREATE', `Action sur : ${u.email}`, exists ? 'info' : 'success');
+                  apiOp(
+                    () => exists ? api.updateUser(u.id, u) : Promise.resolve(),
+                    () => {
+                      onUpdateUsers(exists ? users.map(old => old.id === u.id ? u : old) : [...users, u]);
+                      onAddLog(exists ? 'USER_UPDATE' : 'USER_CREATE', `Action sur : ${u.email}`, exists ? 'info' : 'success');
+                    },
+                    'Erreur sauvegarde membre'
+                  );
                 }}
                 onDelete={(id) => {
-                  onUpdateUsers(users.map(u => u.id === id ? { ...u, isDeleted: true } : u));
-                  onAddLog('USER_DELETE', `Archivage membre ID: ${id}`, 'danger');
+                  apiOp(
+                    () => api.deleteUser(id),
+                    () => {
+                      onUpdateUsers(users.map(u => u.id === id ? { ...u, isDeleted: true } : u));
+                      onAddLog('USER_DELETE', `Archivage membre ID: ${id}`, 'danger');
+                    },
+                    'Erreur suppression membre'
+                  );
                 }}
               />
            )}
@@ -258,12 +370,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 stores={stores}
                 onSave={(s) => {
                   const exists = stores.find(old => old.id === s.id);
-                  onUpdateStores(exists ? stores.map(old => old.id === s.id ? s : old) : [...stores, s]);
-                  onAddLog(exists ? 'STORE_UPDATE' : 'STORE_CREATE', `Enseigne : ${s.name}`, exists ? 'info' : 'success');
+                  apiOp(
+                    () => exists ? api.updateStore(s.id, s) : api.createStore(s),
+                    () => {
+                      onUpdateStores(exists ? stores.map(old => old.id === s.id ? s : old) : [...stores, s]);
+                      onAddLog(exists ? 'STORE_UPDATE' : 'STORE_CREATE', `Enseigne : ${s.name}`, exists ? 'info' : 'success');
+                    },
+                    'Erreur sauvegarde enseigne'
+                  );
                 }}
                 onDelete={(id) => {
-                  onUpdateStores(stores.map(s => s.id === id ? { ...s, isDeleted: true } : s));
-                  onAddLog('STORE_DELETE', `Archivage enseigne ID: ${id}`, 'danger');
+                  apiOp(
+                    () => api.deleteStore(id),
+                    () => {
+                      onUpdateStores(stores.map(s => s.id === id ? { ...s, isDeleted: true } : s));
+                      onAddLog('STORE_DELETE', `Archivage enseigne ID: ${id}`, 'danger');
+                    },
+                    'Erreur suppression enseigne'
+                  );
                 }}
               />
            )}
@@ -274,12 +398,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 products={products}
                 onSave={(p) => {
                   const exists = packs.find(old => old.id === p.id);
-                  onUpdatePacks(exists ? packs.map(old => old.id === p.id ? p : old) : [...packs, p]);
-                  onAddLog(exists ? 'PACK_UPDATE' : 'PACK_CREATE', `Campagne : ${p.name}`, exists ? 'info' : 'success');
+                  apiOp(
+                    () => exists ? api.updatePack(p.id, p) : api.createPack(p),
+                    () => {
+                      onUpdatePacks(exists ? packs.map(old => old.id === p.id ? p : old) : [...packs, p]);
+                      onAddLog(exists ? 'PACK_UPDATE' : 'PACK_CREATE', `Campagne : ${p.name}`, exists ? 'info' : 'success');
+                    },
+                    'Erreur sauvegarde pack'
+                  );
                 }}
                 onDelete={(id) => {
-                  onUpdatePacks(packs.map(p => p.id === id ? { ...p, isDeleted: true } : p));
-                  onAddLog('PACK_DELETE', `Archivage pack ID: ${id}`, 'danger');
+                  apiOp(
+                    () => api.deletePack(id),
+                    () => {
+                      onUpdatePacks(packs.map(p => p.id === id ? { ...p, isDeleted: true } : p));
+                      onAddLog('PACK_DELETE', `Archivage pack ID: ${id}`, 'danger');
+                    },
+                    'Erreur suppression pack'
+                  );
                 }}
               />
            )}
@@ -289,12 +425,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 promoCodes={promoCodes}
                 onSave={(p) => {
                   const exists = promoCodes.find(old => old.id === p.id);
-                  onUpdatePromoCodes(exists ? promoCodes.map(old => old.id === p.id ? p : old) : [...promoCodes, p]);
-                  onAddLog(exists ? 'PROMO_UPDATE' : 'PROMO_CREATE', `Code Promo : ${p.code}`, exists ? 'info' : 'success');
+                  apiOp(
+                    () => exists ? api.updatePromoCode(p.id, p) : api.createPromoCode(p),
+                    () => {
+                      onUpdatePromoCodes(exists ? promoCodes.map(old => old.id === p.id ? p : old) : [...promoCodes, p]);
+                      onAddLog(exists ? 'PROMO_UPDATE' : 'PROMO_CREATE', `Code Promo : ${p.code}`, exists ? 'info' : 'success');
+                    },
+                    'Erreur sauvegarde code promo'
+                  );
                 }}
                 onDelete={(id) => {
-                  onUpdatePromoCodes(promoCodes.map(p => p.id === id ? { ...p, isDeleted: true } : p));
-                  onAddLog('PROMO_DELETE', `Archivage code ID: ${id}`, 'danger');
+                  apiOp(
+                    () => api.deletePromoCode(id),
+                    () => {
+                      onUpdatePromoCodes(promoCodes.map(p => p.id === id ? { ...p, isDeleted: true } : p));
+                      onAddLog('PROMO_DELETE', `Archivage code ID: ${id}`, 'danger');
+                    },
+                    'Erreur suppression code promo'
+                  );
                 }}
               />
            )}
@@ -303,8 +451,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <SubscriptionModule 
                 config={config}
                 onUpdateConfig={(newConfig) => {
-                  onUpdateConfig(newConfig);
-                  onAddLog('CONFIG_UPDATE', 'Mise à jour des paliers d\'abonnement', 'info');
+                  apiOp(
+                    () => api.updateConfig(newConfig),
+                    () => {
+                      onUpdateConfig(newConfig);
+                      onAddLog('CONFIG_UPDATE', 'Mise à jour des paliers d\'abonnement', 'info');
+                    },
+                    'Erreur mise à jour configuration'
+                  );
                 }}
               />
            )}
@@ -318,7 +472,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Action</th><th className="px-8 py-5">Détails</th></tr>
                        </thead>
                        <tbody className="divide-y divide-slate-100">
-                          {auditLogs.map(log => (
+                          {localAuditLogs.map(log => (
                              <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-8 py-5 text-[10px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleString()}</td>
                                 <td className="px-8 py-5"><span className="px-2 py-1 bg-slate-100 rounded-lg text-[8px] font-black uppercase border border-slate-200">{log.action}</span></td>

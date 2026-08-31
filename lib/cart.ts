@@ -74,21 +74,28 @@ export function cartTotalItems(cart: CartItem[]): number {
   return cart.reduce((acc, item) => acc + item.quantity, 0);
 }
 
-/** Sous-total à partir du catalogue (prix par enseigne). */
+/** Trouve le prix unitaire d'un item en tenant compte de store ET city. */
+export function getCartItemPrice(item: CartItem, products: Product[]): number {
+  const p = products.find(prod => prod.id === item.productId);
+  if (!p) return 0;
+  // Priorité : store + city exact, sinon store seul
+  const exact = p.prices.find(pr => pr.store === item.store && pr.city === item.city);
+  if (exact) return exact.price;
+  const byStore = p.prices.find(pr => pr.store === item.store);
+  return byStore?.price || 0;
+}
+
+/** Sous-total à partir du catalogue (prix par enseigne + ville). */
 export function computeSubtotal(cart: CartItem[], products: Product[]): number {
   return cart.reduce((sum, item) => {
-    const p = products.find(prod => prod.id === item.productId);
-    if (!p) return sum;
-    const price = p.prices.find(pr => pr.store === item.store)?.price || 0;
-    return sum + price * item.quantity;
+    return sum + getCartItemPrice(item, products) * item.quantity;
   }, 0);
 }
 
 /** Snapshot du prix unitaire par item (audit / historique). */
 export function snapshotCartPrices(cart: CartItem[], products: Product[]): CartItem[] {
   return cart.map(item => {
-    const p = products.find(prod => prod.id === item.productId);
-    const price = p?.prices.find(pr => pr.store === item.store)?.price || 0;
+    const price = getCartItemPrice(item, products);
     return { ...item, unitPrice: price };
   });
 }

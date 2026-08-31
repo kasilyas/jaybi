@@ -132,7 +132,22 @@ export default function App() {
       const token = api.getToken();
       if (token) {
         const me = await api.fetchMe();
-        if (me && !cancelled) setUser(me);
+        if (me && !cancelled) {
+          setUser(me);
+          // Charge les commandes et signalements de l'utilisateur depuis l'API
+          try {
+            const [myOrders, reports] = await Promise.all([
+              api.fetchMyOrders(),
+              me.role === 'admin' ? api.fetchReports() : Promise.resolve([]),
+            ]);
+            if (!cancelled) {
+              if (myOrders.length) setOrders(myOrders);
+              if (reports.length && me.role === 'admin') setPriceReports(reports);
+            }
+          } catch (e) {
+            console.warn('[api] chargement commandes/reports partiel:', e);
+          }
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -544,7 +559,18 @@ export default function App() {
       <ShoppingRoadmap 
         isOpen={isRoadmapOpen} onClose={() => setIsRoadmapOpen(false)}
         cart={cart} products={products} language={language}
-        onReportPrice={(id, store, city, price, comment) => {
+        onReportPrice={async (id, store, city, price, comment) => {
+           // Tentative d'envoi au backend
+           if (apiAvailable && user) {
+             try {
+               const created = await api.createReport({ productId: id, storeName: store, city, reportedPrice: price, comment });
+               setPriceReports(prev => [created, ...prev]);
+               return;
+             } catch (e) {
+               console.warn('[api] signalement prix échoué, fallback local:', e);
+             }
+           }
+           // Fallback local
            setPriceReports(prev => [...prev, {
               id: `REP-${Date.now()}`, productId: id, productName: products.find(p=>p.id===id)?.name || '?', store, city, reportedPrice: price, comment, userEmail: user?.email || 'guest', timestamp: new Date().toISOString(), status: 'pending'
            }]);
