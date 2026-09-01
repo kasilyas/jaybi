@@ -13,6 +13,24 @@ interface ShoppingRoadmapProps {
   onItemUnavailable?: (productId: string, store: string, city: string) => void;
 }
 
+const STORE_COORDS: Record<string, { lat: number; lon: number }> = {
+  'Marjane': { lat: 33.5731, lon: -7.5898 }, // Casablanca
+  'Carrefour': { lat: 33.5831, lon: -7.6098 },
+  'BIM': { lat: 33.5650, lon: -7.6180 },
+  'Aswak Assalam': { lat: 33.5900, lon: -7.5700 },
+};
+
+const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth radius in km
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
 export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({ 
   isOpen, onClose, cart, products, language, onReportPrice, onItemUnavailable 
 }) => {
@@ -64,8 +82,22 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
-    return groups;
-  }, [cart, products]);
+
+    // Sort groups by approximate distance from user if geolocation is available
+    const groupEntries = Object.entries(groups);
+    if (userPosition) {
+      groupEntries.sort((a, b) => {
+        const storeA = a[0].split(' - ')[0].trim();
+        const storeB = b[0].split(' - ')[0].trim();
+        const coordA = STORE_COORDS[storeA];
+        const coordB = STORE_COORDS[storeB];
+        const distA = coordA ? haversineDistance(userPosition.lat, userPosition.lng, coordA.lat, coordA.lon) : Infinity;
+        const distB = coordB ? haversineDistance(userPosition.lat, userPosition.lng, coordB.lat, coordB.lon) : Infinity;
+        return distA - distB;
+      });
+    }
+    return Object.fromEntries(groupEntries);
+  }, [cart, products, userPosition]);
 
   const toggleCheck = (id: string, groupKey: string) => {
     const key = `${groupKey}-${id}`;
@@ -215,6 +247,10 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
             Object.entries(roadmapData).map(([groupKey, itemsVal]) => {
               const items = itemsVal as any[];
               const [storeName, city] = groupKey.split(' - ');
+              const storeCoord = STORE_COORDS[storeName.trim()];
+              const distanceKm = userPosition && storeCoord
+                ? haversineDistance(userPosition.lat, userPosition.lng, storeCoord.lat, storeCoord.lon)
+                : null;
               return (
                 <section key={groupKey} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm print-no-shadow print:rounded-none print:border-0 print:border-b print:border-slate-300 print:mb-4 print:p-0">
                    <div className={`flex items-start gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -226,7 +262,7 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
                          <div className={`flex items-center justify-between mb-6 pb-4 border-b border-slate-50 ${isRTL ? 'flex-row-reverse' : ''} print:border-none print:mb-2 print:pb-2`}>
                             <div>
                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">{storeName}</h3>
-                               <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest print:text-black">📍 {city}</p>
+                               <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest print:text-black">📍 {city}{distanceKm !== null && <span className="ml-2 text-slate-400">· {distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`}</span>}</p>
                             </div>
                             <div className={isRTL ? 'text-left' : 'text-right'}>
                                <p className="text-lg font-black text-slate-900" dir="ltr">{items.reduce((s: number, i: any) => s + (i.currentPrice * i.quantity), 0).toFixed(2)} DH</p>

@@ -191,19 +191,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
 
             {/* Social Login Buttons */}
             <div className="space-y-3 mb-8">
-                <button onClick={() => handleProcessLogin('Google')} className="w-full py-3.5 px-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all relative">
-                    {isLoading === 'Google' ? <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"/> : <Icons.Google />}
+                <button disabled onClick={() => {}} className="w-full py-3.5 px-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-sm font-bold text-slate-700 opacity-60 cursor-not-allowed relative">
+                    <Icons.Google />
                     <span>{t.continueWithGoogle}</span>
+                    <span className="absolute top-2 right-3 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2 py-0.5 rounded-full">Bientôt</span>
                 </button>
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <button onClick={() => handleProcessLogin('Apple')} className="py-3.5 bg-black text-white rounded-2xl flex items-center justify-center hover:opacity-80 transition-all">
-                        {isLoading === 'Apple' ? <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin"/> : <Icons.Apple />}
+                    <button disabled onClick={() => {}} className="py-3.5 bg-black text-white rounded-2xl flex items-center justify-center opacity-60 cursor-not-allowed relative">
+                        <Icons.Apple />
+                        <span className="absolute -top-2 -right-2 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">Bientôt</span>
                     </button>
-                    <button onClick={() => handleProcessLogin('Microsoft')} className="py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-center hover:bg-slate-50 transition-all">
-                         {isLoading === 'Microsoft' ? <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin"/> : <Icons.Microsoft />}
+                    <button disabled onClick={() => {}} className="py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-center opacity-60 cursor-not-allowed relative">
+                         <Icons.Microsoft />
+                         <span className="absolute -top-2 -right-2 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">Bientôt</span>
                     </button>
-                    <button onClick={() => handleProcessLogin('Facebook')} className="py-3.5 bg-[#1877F2]/10 border border-[#1877F2]/20 rounded-2xl flex items-center justify-center hover:bg-[#1877F2]/20 transition-all">
-                         {isLoading === 'Facebook' ? <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"/> : <Icons.Facebook />}
+                    <button disabled onClick={() => {}} className="py-3.5 bg-[#1877F2]/10 border border-[#1877F2]/20 rounded-2xl flex items-center justify-center opacity-60 cursor-not-allowed relative">
+                         <Icons.Facebook />
+                         <span className="absolute -top-2 -right-2 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">Bientôt</span>
                     </button>
                 </div>
             </div>

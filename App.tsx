@@ -351,9 +351,18 @@ export default function App() {
                  </button>
                )}
 
-               <button onClick={() => setLanguage(l => l === 'fr' ? 'ar' : 'fr')} className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-black uppercase">
-                  {language === 'fr' ? 'AR' : 'FR'}
-               </button>
+               <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as any)}
+                  className="h-11 px-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black uppercase outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all cursor-pointer"
+                  title="Language"
+               >
+                  <option value="fr">FR</option>
+                  <option value="en">EN</option>
+                  <option value="es">ES</option>
+                  <option value="zh">ZH</option>
+                  <option value="ar">AR</option>
+               </select>
 
                <button onClick={() => setIsCartOpen(true)} className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-slate-900/20">
                   <Icons.Cart />
