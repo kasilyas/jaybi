@@ -6,10 +6,21 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 
 export const suggestionsRouter = Router();
 
+// Schéma strict pour suggestedData (anti XSS / injection de données arbitraires)
+const suggestedDataSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  category: z.string().min(1).max(100).optional(),
+  image: z.string().max(500).optional(),
+  unit: z.enum(['kg', 'L', 'unit', 'g', 'ml']).optional(),
+  weight: z.number().nonnegative().max(10000).optional(),
+  isNational: z.boolean().optional(),
+  brand: z.string().max(100).optional(),
+});
+
 const suggestionSchema = z.object({
   productId: z.string().optional().nullable(),
-  suggestedData: z.record(z.any()),
-  comment: z.string().optional(),
+  suggestedData: suggestedDataSchema,
+  comment: z.string().max(1000).optional(),
 });
 
 /**
@@ -67,22 +78,25 @@ suggestionsRouter.patch('/:id/review', authenticate, requireRole('admin'), async
   if (suggestion.status !== 'pending') return res.status(400).json({ error: 'ALREADY_REVIEWED' });
 
   if (parsed.data.status === 'verified') {
-    const data = suggestion.suggestedData as any;
+    // Re-valide suggestedData avec le schéma strict (defense in depth)
+    const dataCheck = suggestedDataSchema.safeParse(suggestion.suggestedData);
+    if (!dataCheck.success) return res.status(400).json({ error: 'INVALID_SUGGESTED_DATA' });
+    const data = dataCheck.data;
     if (suggestion.productId) {
-      // Modification d'un produit existant
-      await prisma.product.update({
-        where: { id: suggestion.productId },
-        data: {
-          name: data.name,
-          category: data.category,
-          image: data.image,
-          unit: data.unit,
-          weight: data.weight,
-          isNational: data.isNational,
-        },
-      });
+      // Modification d'un produit existant — uniquement les champs fournis
+      const updateData: Record<string, unknown> = {};
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.category !== undefined) updateData.category = data.category;
+      if (data.image !== undefined) updateData.image = data.image;
+      if (data.unit !== undefined) updateData.unit = data.unit;
+      if (data.weight !== undefined) updateData.weight = data.weight;
+      if (data.isNational !== undefined) updateData.isNational = data.isNational;
+      await prisma.product.update({ where: { id: suggestion.productId }, data: updateData });
     } else {
-      // Création d'un nouveau produit
+      // Création d'un nouveau produit — champs obligatoires requis
+      if (!data.name || !data.category) {
+        return res.status(400).json({ error: 'NAME_AND_CATEGORY_REQUIRED' });
+      }
       await prisma.product.create({
         data: {
           name: data.name,

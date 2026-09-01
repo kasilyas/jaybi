@@ -32,10 +32,14 @@ ordersRouter.post('/', authenticate, async (req, res: Response) => {
 
   const { items, mode, paymentMethod, promoCodeId } = parsed.data;
   const productIds = [...new Set(items.map(i => i.productId))];
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, isDeleted: false },
-    include: { prices: { include: { store: true } } },
-  });
+  const packIds = [...new Set(items.map(i => i.packId).filter(Boolean) as string[])];
+  const [products, packs] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: productIds }, isDeleted: false },
+      include: { prices: { include: { store: true } } },
+    }),
+    packIds.length ? prisma.pack.findMany({ where: { id: { in: packIds }, isDeleted: false } }) : Promise.resolve([]),
+  ]);
 
   let total = 0;
   const orderItemsData = items.map(it => {
@@ -45,14 +49,20 @@ ordersRouter.post('/', authenticate, async (req, res: Response) => {
       ? p.prices.find(pr => pr.storeId === it.storeId && pr.city === it.city)
       : [...p.prices].sort((a, b) => a.price - b.price)[0];
     if (!entry) throw Object.assign(new Error('PRICE_NOT_FOUND'), { productId: it.productId });
-    total += entry.price * it.quantity;
+    // Applique la remise pack si l'item appartient à un pack
+    const pack = it.packId ? packs.find(pk => pk.id === it.packId) : null;
+    const discountPct = pack?.discountPercent ?? 0;
+    const unitPrice = discountPct > 0
+      ? Math.round(entry.price * (100 - Math.min(discountPct, 100))) / 100
+      : entry.price;
+    total += unitPrice * it.quantity;
     return {
       productId: p.id,
       productName: p.name,
       storeName: entry.store.name,
       city: entry.city,
       quantity: it.quantity,
-      unitPrice: entry.price,
+      unitPrice,
       packId: it.packId ?? null,
     };
   });
@@ -104,6 +114,23 @@ ordersRouter.post('/', authenticate, async (req, res: Response) => {
   });
 
   await addAuditLog({ action: 'ORDER_CREATED', user: req.user!.email, userEmail: req.user!.email, details: `Commande ${order.id} créée (${mode})`, type: 'success' });
+
+  // Persiste le savingsScore : somme des (originalPrice - unitPrice) * qty pour les prix promo
+  const savings = orderItemsData.reduce((sum, it) => {
+    const p = products.find(pp => pp.id === it.productId);
+    const entry = p?.prices.find(pr => pr.store.name === it.storeName && pr.city === it.city);
+    if (entry?.originalPrice && entry.originalPrice > it.unitPrice) {
+      return sum + (entry.originalPrice - it.unitPrice) * it.quantity;
+    }
+    return sum;
+  }, 0);
+  if (savings > 0) {
+    await prisma.user.update({
+      where: { id: req.user!.sub },
+      data: { savingsScore: { increment: Math.round(savings) } },
+    }).catch(() => null); // non-bloquant
+  }
+
   res.status(201).json(serializeOrder(order));
 });
 

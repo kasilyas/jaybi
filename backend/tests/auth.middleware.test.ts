@@ -10,6 +10,19 @@ vi.mock('../src/lib/jwt.js', () => ({
   signToken: () => 'signed',
 }));
 
+// Mock de prisma pour le DB lookup dans authenticate
+vi.mock('../src/lib/prisma.js', () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+        if (where.id === 'u1') return { id: 'u1', role: 'admin', isDeleted: false };
+        if (where.id === 'u2') return { id: 'u2', role: 'customer', isDeleted: false };
+        return null;
+      }),
+    },
+  },
+}));
+
 // Helper : construit un mock Response où status() renvoie this pour le chaînage.
 function mockRes() {
   const res: any = {};
@@ -24,7 +37,7 @@ describe('middleware/auth - authenticate + requireRole', () => {
     const { authenticate } = await import('../src/middleware/auth.js');
     const req: any = { headers: {} };
     const res = mockRes();
-    authenticate(req, res, () => {});
+    await authenticate(req, res, () => {});
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
@@ -32,7 +45,7 @@ describe('middleware/auth - authenticate + requireRole', () => {
     const { authenticate } = await import('../src/middleware/auth.js');
     const req: any = { headers: { authorization: 'Bearer bad' } };
     const res = mockRes();
-    authenticate(req, res, () => {});
+    await authenticate(req, res, () => {});
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
@@ -41,7 +54,7 @@ describe('middleware/auth - authenticate + requireRole', () => {
     const req: any = { headers: { authorization: 'Bearer admin-token' } };
     const res = mockRes();
     const next = vi.fn();
-    authenticate(req, res, next);
+    await authenticate(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.user?.role).toBe('admin');
   });
