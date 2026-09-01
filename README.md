@@ -2,6 +2,18 @@
 
 Plateforme de comparaison de prix grande surface au Maroc. Permet aux consommateurs de trouver les meilleurs prix parmi Marjane, Carrefour, BIM et Aswak Assalam, de planifier leurs courses (roadmap GPS), et de passer commande en cash on delivery (COD).
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | Structure du projet, modèles de données, flux, décisions techniques |
+| [Développement](docs/DEVELOPMENT.md) | Installation, variables d'env, commandes, conventions, workflow test-first |
+| [Tests](docs/TESTING.md) | Stratégie de tests, pyramide, couverture par module, CI |
+| [Déploiement](docs/DEPLOYMENT.md) | Docker, manuel, PaaS, Nginx, sauvegarde, rollback, checklist |
+| [Sécurité](docs/SECURITY.md) | Auth, autorisation, validation, headers, rate limiting, audit, checklist |
+| [API Reference](docs/API.md) | Tous les endpoints, body/response, codes d'erreur |
+| [Roadmap](docs/ROADMAP.md) | Versions livrées et à venir, métriques |
+
 ## Stack technique
 
 | Couche | Technologies |
