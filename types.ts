@@ -96,7 +96,7 @@ export type PriceEntry = {
 export type Product = {
   id: string;
   name: string;
-  brand: string; 
+  brand: string;
   category: string;
   image: string;
   unit: 'kg' | 'L' | 'unit' | 'g' | 'ml';
@@ -104,6 +104,15 @@ export type Product = {
   prices: PriceEntry[];
   isNational?: boolean;
   isDeleted?: boolean;
+  // --- Gestion produit (v0.2) : activation, remise, flash sale ---
+  isActive?: boolean;
+  discountPercent?: number | null;
+  flashSalePercent?: number | null;
+  flashSaleStartsAt?: string | null;
+  flashSaleEndsAt?: string | null;
+  flashSaleLabel?: string | null;
+  flashSaleActive?: boolean;
+  effectiveDiscountPercent?: number;
 };
 
 /**

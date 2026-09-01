@@ -308,6 +308,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     'Erreur suppression produit'
                   );
                 }}
+                onActivate={(id) => {
+                  apiOp(
+                    () => api.activateProduct(id),
+                    () => {
+                      onUpdateProducts(products.map(p => p.id === id ? { ...p, isActive: true } : p));
+                      onAddLog('PRODUCT_ACTIVATE', `Activation produit ID: ${id}`, 'success');
+                    },
+                    'Erreur activation produit'
+                  );
+                }}
+                onDeactivate={(id) => {
+                  apiOp(
+                    () => api.deactivateProduct(id),
+                    () => {
+                      onUpdateProducts(products.map(p => p.id === id ? { ...p, isActive: false } : p));
+                      onAddLog('PRODUCT_DEACTIVATE', `Désactivation produit ID: ${id}`, 'warning');
+                    },
+                    'Erreur désactivation produit'
+                  );
+                }}
+                onRestore={(id) => {
+                  apiOp(
+                    () => api.restoreProduct(id),
+                    () => {
+                      onUpdateProducts(products.map(p => p.id === id ? { ...p, isDeleted: false } : p));
+                      onAddLog('PRODUCT_RESTORE', `Restauration produit ID: ${id}`, 'success');
+                    },
+                    'Erreur restauration produit'
+                  );
+                }}
               />
            )}
 

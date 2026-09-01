@@ -35,14 +35,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const sortedPrices = [...product.prices].sort((a, b) => a.price - b.price);
   const bestPrice = sortedPrices[0];
   const otherPrices = sortedPrices.slice(1);
-  
-  const isPromoActive = bestPrice.originalPrice && 
-    bestPrice.originalPrice > bestPrice.price && 
+
+  const isPromoActive = bestPrice.originalPrice &&
+    bestPrice.originalPrice > bestPrice.price &&
     (!bestPrice.promotionExpiresAt || new Date(bestPrice.promotionExpiresAt) > new Date());
 
-  const discountPercent = isPromoActive 
+  const discountPercent = isPromoActive
     ? Math.round(((bestPrice.originalPrice! - bestPrice.price) / bestPrice.originalPrice!) * 100)
     : 0;
+
+  // --- Remise produit / flash sale (v0.2) ---
+  const effectiveDiscount = product.effectiveDiscountPercent ?? 0;
+  const isFlashSale = !!product.flashSaleActive;
+  const hasProductDiscount = effectiveDiscount > 0;
+  // Prix de base (meilleur prix enseigne) avant remise produit
+  const basePrice = bestPrice?.price ?? 0;
+  const discountedPrice = hasProductDiscount
+    ? basePrice * (1 - effectiveDiscount / 100)
+    : basePrice;
 
   useEffect(() => {
     if (!bestPrice.promotionExpiresAt) return;
@@ -87,11 +97,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </button>
       </div>
 
-      <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} z-10`}>
-        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-md border ${isPromoActive ? 'bg-gradient-to-r from-rose-500 to-rose-600 border-rose-600 text-white' : isFresh ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${isPromoActive ? 'bg-white' : isFresh ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+      <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} z-10 flex flex-col gap-1.5 items-end`}>
+        {/* Badge Flash si vente flash active */}
+        {isFlashSale && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-md border bg-gradient-to-r from-rose-500 to-rose-600 border-rose-600 text-white">
+            <Icons.Lightning className="w-3 h-3" />
+            <span className="text-[9px] font-black uppercase tracking-tight">Flash</span>
+          </div>
+        )}
+        {/* Badge remise (promo enseigne OU remise produit/flash) */}
+        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-md border ${
+          isPromoActive || hasProductDiscount ? 'bg-gradient-to-r from-rose-500 to-rose-600 border-rose-600 text-white'
+          : isFresh ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'
+        }`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${isPromoActive || hasProductDiscount ? 'bg-white' : isFresh ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
           <span className="text-[9px] font-black uppercase tracking-tight">
-            {isPromoActive ? `-${discountPercent}%` : isFresh ? t.freshPrice : t.verify}
+            {isPromoActive || hasProductDiscount ? `-${Math.max(discountPercent, effectiveDiscount)}%` : isFresh ? t.freshPrice : t.verify}
           </span>
         </div>
       </div>
@@ -130,15 +151,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
            {/* Best Price Main Display */}
            <div className={`flex items-center justify-between mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className={`flex flex-col ${isRTL ? 'items-end' : 'items-start'}`}>
-                {isPromoActive && (
-                  <span className="text-[10px] font-bold text-slate-400 line-through" dir="ltr">{bestPrice.originalPrice?.toFixed(2)} {t.currencySuffix}</span>
+                {/* Prix barré : promo enseigne OU remise produit/flash */}
+                {(isPromoActive || hasProductDiscount) && (
+                  <span className="text-[10px] font-bold text-slate-400 line-through" dir="ltr">
+                    {(isPromoActive ? bestPrice.originalPrice : basePrice)?.toFixed(2)} {t.currencySuffix}
+                  </span>
                 )}
                 <div className="flex items-baseline gap-1">
-                  <span className={`text-2xl font-black ${isPromoActive ? 'text-rose-600' : 'text-emerald-600'}`}>{bestPrice.price.toFixed(2)}</span>
+                  <span className={`text-2xl font-black ${isPromoActive || hasProductDiscount ? (isFlashSale ? 'text-rose-600' : 'text-emerald-600') : 'text-emerald-600'}`}>
+                    {(isPromoActive ? bestPrice.price : discountedPrice).toFixed(2)}
+                  </span>
                   <span className="text-[10px] font-black text-slate-400">{t.currencySuffix}</span>
                 </div>
+                {/* Libellé flash si présent */}
+                {isFlashSale && product.flashSaleLabel && (
+                  <span className="text-[8px] font-black uppercase tracking-widest text-rose-500 mt-0.5">{product.flashSaleLabel}</span>
+                )}
               </div>
-              
+
               <div className="flex flex-col items-end">
                 <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-sm">
                   <img src={STORES[bestPrice.store as StoreName]?.logo} alt={bestPrice.store} className="h-3 w-auto object-contain" />

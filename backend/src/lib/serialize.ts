@@ -10,6 +10,12 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
 }>;
 
 export function serializeProduct(p: ProductWithRelations) {
+  // Détermine si le flash sale est actif maintenant
+  const now = new Date();
+  const flashSaleActive = !!(p.flashSalePercent
+    && p.flashSaleStartsAt && p.flashSaleStartsAt <= now
+    && p.flashSaleEndsAt && p.flashSaleEndsAt >= now);
+
   return {
     id: p.id,
     name: p.name,
@@ -21,6 +27,19 @@ export function serializeProduct(p: ProductWithRelations) {
     weight: p.weight,
     isNational: p.isNational,
     isDeleted: p.isDeleted,
+    isActive: p.isActive,
+    // Remise générale
+    discountPercent: p.discountPercent ?? null,
+    // Flash vente
+    flashSalePercent: p.flashSalePercent ?? null,
+    flashSaleStartsAt: p.flashSaleStartsAt?.toISOString() ?? null,
+    flashSaleEndsAt: p.flashSaleEndsAt?.toISOString() ?? null,
+    flashSaleLabel: p.flashSaleLabel ?? null,
+    flashSaleActive,
+    // Remise effective = flash sale prioritaire sur discount général
+    effectiveDiscountPercent: flashSaleActive
+      ? p.flashSalePercent!
+      : (p.discountPercent ?? 0),
     prices: p.prices.map(pr => ({
       id: pr.id,
       store: pr.store.name,

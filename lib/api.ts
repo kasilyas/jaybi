@@ -107,6 +107,33 @@ export async function deleteProduct(id: string): Promise<void> {
   return apiFetch<void>(`/products/${id}`, { method: 'DELETE' });
 }
 
+// --- PRODUCTS (admin) ---
+
+/** Récupère TOUS les produits (admin uniquement), y compris supprimés/inactifs. */
+export async function fetchAdminAllProducts(): Promise<Product[]> {
+  return apiFetch<Product[]>('/products/admin/all');
+}
+
+/** Récupère uniquement les produits supprimés (soft-delete). */
+export async function fetchDeletedProducts(): Promise<Product[]> {
+  return apiFetch<Product[]>('/products/admin/deleted');
+}
+
+/** Restaure un produit supprimé (soft-delete). */
+export async function restoreProduct(id: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${id}/restore`, { method: 'POST' });
+}
+
+/** Active un produit (le rend visible côté client). */
+export async function activateProduct(id: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${id}/activate`, { method: 'PATCH' });
+}
+
+/** Désactive un produit (le masque côté client sans le supprimer). */
+export async function deactivateProduct(id: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${id}/deactivate`, { method: 'PATCH' });
+}
+
 // --- PACKS ---
 
 export async function fetchPacks(): Promise<Pack[]> {

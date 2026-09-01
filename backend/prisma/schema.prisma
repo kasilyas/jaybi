@@ -140,16 +140,24 @@ model Brand {
 }
 
 model Product {
-  id         String    @id @default(cuid())
-  name       String
-  brandId    String?
-  brand      Brand?    @relation(fields: [brandId], references: [id])
-  category   String
-  image      String    @default("")
-  unit       Unit      @default(unit)
-  weight     Float     @default(0)
-  isNational Boolean   @default(false)
-  isDeleted  Boolean   @default(false)
+  id               String    @id @default(cuid())
+  name             String
+  brandId          String?
+  brand            Brand?    @relation(fields: [brandId], references: [id])
+  category         String
+  image            String    @default("")
+  unit             Unit      @default(unit)
+  weight           Float     @default(0)
+  isNational       Boolean   @default(false)
+  isDeleted        Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  // Remise générale (discount) sur le produit
+  discountPercent  Float?
+  // Flash vente : réduction temporaire programmable
+  flashSalePercent Float?
+  flashSaleStartsAt DateTime?
+  flashSaleEndsAt   DateTime?
+  flashSaleLabel    String?
   prices     PriceEntry[]
   packs      PackProduct[]
   reports    PriceReport[]
