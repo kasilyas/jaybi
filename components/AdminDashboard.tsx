@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Product, PlatformConfig, User, Order, Pack, Language, AuditLog, Store, PromoCode, SubscriptionTier, Brand, PriceReport } from '../types';
+import { Product, PlatformConfig, User, Order, Pack, Language, AuditLog, Store, PromoCode, SubscriptionTier, Brand, PriceReport, SecurityAlert } from '../types';
 import { Icons } from '../constants';
 import * as api from '../lib/api';
 import { ProductModule } from './AdminProductModule';
@@ -11,6 +11,7 @@ import { PromoModule } from './AdminPromoModule';
 import { SubscriptionModule } from './AdminSubscriptionModule';
 import { BrandModule } from './AdminBrandModule';
 import { AdminReportsModule } from './AdminReportsModule';
+import { AdminSecurityModule } from './AdminSecurityModule';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   isOpen, onClose, products, packs, users, orders, stores, promoCodes, brands, priceReports, auditLogs, config, language, onUpdateProducts, onUpdatePacks, onUpdateUsers, onUpdateStores, onUpdatePromoCodes, onUpdateBrands, onUpdatePriceReports, onAddLog, onUpdateConfig, currentUserEmail
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit' | 'security'>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -53,6 +54,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // users est synchronisé via onUpdateUsers.
   const [localAuditLogs, setLocalAuditLogs] = useState<AuditLog[]>(auditLogs);
   const [localOrders, setLocalOrders] = useState<Order[]>(orders);
+
+  // --- Sécurité (alertes injection + utilisateurs suspendus) ---
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
+  const [suspendedUsers, setSuspendedUsers] = useState<any[]>([]);
+
+  const refreshSecurityData = async () => {
+    try {
+      const [alerts, suspended] = await Promise.all([
+        api.fetchSecurityAlerts().catch(() => [] as SecurityAlert[]),
+        api.fetchSuspendedUsers().catch(() => [] as any[]),
+      ]);
+      setSecurityAlerts(alerts);
+      setSuspendedUsers(suspended);
+    } catch (e) {
+      console.warn('[admin] chargement sécurité échoué:', e);
+    }
+  };
 
   // Au montage / ouverture : on charge les données réelles depuis le backend.
   useEffect(() => {
@@ -72,6 +90,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       } catch (e) {
         console.warn('[admin] chargement audit/users/orders échoué, fallback props:', e);
       }
+      // Chargement des données de sécurité (alertes + utilisateurs suspendus).
+      refreshSecurityData();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,6 +150,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   ], [users, statsCalculations]);
 
   const pendingReportsCount = useMemo(() => priceReports.filter(r => r.status === 'pending').length, [priceReports]);
+  const unresolvedSecurityCount = useMemo(() => securityAlerts.filter(a => !a.resolved).length, [securityAlerts]);
 
   if (!isOpen) return null;
 
@@ -173,6 +194,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              { id: 'promo', label: 'Codes Coupons', icon: <Icons.Tag /> },
              { id: 'subs', label: 'Abonnements', icon: <Icons.Lightning /> },
              { id: 'audit', label: 'Audit Log', icon: <Icons.Heart /> },
+             { id: 'security', label: 'Sécurité', icon: <Icons.Shield />, badge: unresolvedSecurityCount },
            ].map(tab => (
              <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setMobileNavOpen(false); }} title={sidebarCollapsed ? tab.label : undefined} className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-4 sm:px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all min-h-[44px] ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                 <div className={`flex items-center gap-4 ${sidebarCollapsed ? 'gap-0' : ''}`}>
@@ -513,6 +535,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </table>
                  </div>
               </div>
+           )}
+           
+           {activeTab === 'security' && (
+             <AdminSecurityModule
+               alerts={securityAlerts}
+               suspendedUsers={suspendedUsers}
+               onResolveAlert={(id) => {
+                 apiOp(
+                   () => api.resolveAlert(id),
+                   () => {
+                     setSecurityAlerts(prev => prev.map(a => a.id === id ? { ...a, resolved: true, resolvedAt: new Date().toISOString() } : a));
+                     onAddLog('SECURITY_ALERT_RESOLVE', `Alerte sécurité ${id} résolue`, 'success');
+                   },
+                   'Erreur résolution alerte sécurité'
+                 );
+               }}
+               onUnsuspend={(id) => {
+                 apiOp(
+                   () => api.unsuspendUser(id),
+                   () => {
+                     setSuspendedUsers(prev => prev.filter(u => u.id !== id));
+                     onAddLog('USER_UNSUSPEND', `Utilisateur ${id} réactivé`, 'success');
+                   },
+                   'Erreur réactivation utilisateur'
+                 );
+               }}
+             />
            )}
            
         </main>

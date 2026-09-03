@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { addAuditLog } from '../lib/audit.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { injectionGuard } from '../middleware/injectionGuard.js';
 
 export const suggestionsRouter = Router();
 
@@ -27,7 +28,7 @@ const suggestionSchema = z.object({
  * POST /suggestions — un contributor (ou customer) propose une création/modif produit.
  * @security Aucune escalade : la suggestion est en statut `pending` jusqu'à validation admin.
  */
-suggestionsRouter.post('/', authenticate, requireRole('customer', 'contributor', 'admin'), async (req, res: Response) => {
+suggestionsRouter.post('/', authenticate, requireRole('customer', 'contributor', 'admin'), injectionGuard('/api/suggestions'), async (req, res: Response) => {
   const parsed = suggestionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
 

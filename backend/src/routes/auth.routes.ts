@@ -9,6 +9,7 @@ import { serializeUser } from '../lib/serialize.js';
 import { env } from '../config/env.js';
 import { TEST_ACCOUNTS } from '../config/testAccounts.js';
 import { authenticate } from '../middleware/auth.js';
+import { injectionGuard } from '../middleware/injectionGuard.js';
 
 export const authRouter = Router();
 
@@ -66,7 +67,7 @@ authRouter.post('/request-otp', async (req, res: Response) => {
  * Vérifie l'OTP. Si l'utilisateur n'existe pas, crée un compte `customer`/`free`
  * (inscription). @security Aucune escalade de rôle.
  */
-authRouter.post('/verify-otp', async (req, res: Response) => {
+authRouter.post('/verify-otp', injectionGuard('/api/auth/verify-otp'), async (req, res: Response) => {
   const parsed = verifyOtpSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
 

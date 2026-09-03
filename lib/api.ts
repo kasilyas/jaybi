@@ -5,7 +5,7 @@
  * Si le backend n'est pas joignable (ex: dev sans Docker), on retombe sur mockData.
  * Le JWT est stocké dans localStorage et envoyé en header Authorization.
  */
-import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion } from '../types';
+import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert } from '../types';
 
 const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:4000/api';
 const TOKEN_KEY = 'jaybi_jwt';
@@ -276,4 +276,27 @@ export async function createSuggestion(data: { productId?: string | null; sugges
 
 export async function reviewSuggestion(id: string, status: 'verified' | 'rejected'): Promise<ProductSuggestion> {
   return apiFetch<ProductSuggestion>(`/suggestions/${id}/review`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+// --- SECURITY ---
+
+export async function fetchSecurityAlerts(): Promise<SecurityAlert[]> {
+  return apiFetch<SecurityAlert[]>('/security/alerts');
+}
+
+export async function fetchUnresolvedAlertsCount(): Promise<number> {
+  const r = await apiFetch<{ count: number }>('/security/alerts/unresolved');
+  return r.count;
+}
+
+export async function resolveAlert(id: string): Promise<SecurityAlert> {
+  return apiFetch<SecurityAlert>(`/security/alerts/${id}/resolve`, { method: 'PATCH' });
+}
+
+export async function fetchSuspendedUsers(): Promise<any[]> {
+  return apiFetch<any[]>('/security/suspended');
+}
+
+export async function unsuspendUser(id: string): Promise<any> {
+  return apiFetch<any>(`/security/users/${id}/unsuspend`, { method: 'POST' });
 }

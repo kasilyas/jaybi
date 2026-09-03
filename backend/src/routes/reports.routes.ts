@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { addAuditLog } from '../lib/audit.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { injectionGuard } from '../middleware/injectionGuard.js';
 
 export const reportsRouter = Router();
 
@@ -15,7 +16,7 @@ const reportSchema = z.object({
 });
 
 // Signalement par un utilisateur connecté (crowdsourcing)
-reportsRouter.post('/', authenticate, async (req, res: Response) => {
+reportsRouter.post('/', authenticate, injectionGuard('/api/reports'), async (req, res: Response) => {
   const parsed = reportSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
   const product = await prisma.product.findUnique({ where: { id: parsed.data.productId } });

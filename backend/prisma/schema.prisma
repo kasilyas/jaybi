@@ -84,21 +84,26 @@ enum AuditType {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  passwordHash String?
-  role         Role      @default(customer)
-  tier         Tier      @default(free)
-  isPremium    Boolean   @default(false)
-  savingsScore Int       @default(0)
-  avatar       String?
-  isDeleted    Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String?
+  role            Role      @default(customer)
+  tier            Tier      @default(free)
+  isPremium       Boolean   @default(false)
+  savingsScore    Int       @default(0)
+  avatar          String?
+  isDeleted       Boolean   @default(false)
+  // Anti-prompt injection : suspension automatique
+  isSuspended     Boolean   @default(false)
+  suspendedReason String?
+  suspendedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  addresses    Address[]
-  orders       Order[]
+  addresses       Address[]
+  orders          Order[]
+  securityAlerts  SecurityAlert[]
 
   @@map("users")
 }
@@ -327,4 +332,27 @@ model AppConfig {
   activeMaintenance Boolean @default(false)
 
   @@map("app_config")
+}
+
+// Alerte de sécurité — tentative de prompt injection détectée.
+// OWASP LLM01 / NIST AI RMF : traçabilité et réponse aux incidents.
+model SecurityAlert {
+  id          String   @id @default(cuid())
+  userId      String?
+  userEmail   String
+  severity    String   // low, medium, high, critical
+  score       Int
+  patterns    String[] // noms des patterns matchés
+  inputText   String   // extrait du texte suspect (max 500 chars)
+  endpoint    String   // route où l'injection a été tentée
+  resolved    Boolean  @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resolved])
+  @@map("security_alerts")
 }

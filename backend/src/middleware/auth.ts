@@ -32,10 +32,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   // DB lookup : vérifie que l'utilisateur est toujours valide
   const dbUser = await prisma.user.findUnique({
     where: { id: payload.sub },
-    select: { id: true, role: true, isDeleted: true },
+    select: { id: true, role: true, isDeleted: true, isSuspended: true },
   });
   if (!dbUser || dbUser.isDeleted) {
     return res.status(401).json({ error: 'ACCOUNT_DISABLED' });
+  }
+  if (dbUser.isSuspended) {
+    return res.status(403).json({ error: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu pour activité suspecte. Contactez l\'administrateur.' });
   }
   // Utilise le rôle actuel de la DB, pas celui du token (anti-escalade persistante)
   req.user = { ...payload, role: dbUser.role };

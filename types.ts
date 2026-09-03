@@ -213,3 +213,19 @@ export type PlatformConfig = {
   tiers: Record<SubscriptionTier, TierMetadata>;
   activeMaintenance: boolean;
 };
+
+export interface SecurityAlert {
+  id: string;
+  userId: string | null;
+  userEmail: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  score: number;
+  patterns: string[];
+  inputText: string;
+  endpoint: string;
+  resolved: boolean;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  user?: { name: string; email: string } | null;
+}

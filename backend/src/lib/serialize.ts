@@ -118,6 +118,7 @@ export function serializeUser(u: {
   savingsScore: number;
   avatar: string | null;
   isDeleted: boolean;
+  isSuspended: boolean;
   addresses?: any[];
 }) {
   return {
@@ -130,6 +131,7 @@ export function serializeUser(u: {
     savingsScore: u.savingsScore,
     avatar: u.avatar,
     isDeleted: u.isDeleted,
+    isSuspended: u.isSuspended,
     addresses: u.addresses ?? [],
   };
 }

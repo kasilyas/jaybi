@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { detectInjection } from "../lib/injectionDetection";
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY as string | undefined;
 
@@ -49,6 +50,11 @@ export async function simulateDataSync(currentProducts: any[]) {
 }
 
 export async function parseGroceryList(rawText: string) {
+  const inj = detectInjection(rawText);
+  if (inj.detected) {
+    console.warn('[SECURITY] Prompt injection bloquée:', inj.patterns);
+    return [];
+  }
   if (!API_KEY || !rawText.trim()) return [];
   try {
     const ai = getAi();
@@ -70,6 +76,11 @@ export async function parseGroceryList(rawText: string) {
 }
 
 export async function getSmartSearchSuggestions(query: string) {
+    const inj = detectInjection(query);
+    if (inj.detected) {
+      console.warn('[SECURITY] Prompt injection bloquée:', inj.patterns);
+      return [];
+    }
     if (!API_KEY || query.length < 2) return [];
     try {
         const ai = getAi();
