@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Product, CartItem, StoreName, Language } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
+import { ProductImage } from './ProductImage';
 
 interface ShoppingRoadmapProps {
   isOpen: boolean;
@@ -288,7 +289,7 @@ export const ShoppingRoadmap: React.FC<ShoppingRoadmapProps> = ({
                                      </div>
                                      
                                      <div className="shrink-0 w-12 h-12 bg-white rounded-xl p-2 border border-slate-200 print-hidden">
-                                        <img src={item.product.image} className="w-full h-full object-contain mix-blend-multiply" alt="" />
+                                        <ProductImage product={item.product} className="w-full h-full flex items-center justify-center" imgClassName="w-full h-full object-contain mix-blend-multiply" />
                                      </div>
                                      
                                      <div className={`flex-1 min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>

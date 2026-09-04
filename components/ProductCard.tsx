@@ -119,13 +119,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Image Holder */}
       <div className={`relative aspect-square mb-5 bg-gradient-to-br ${visual.color} rounded-[2rem] overflow-hidden flex items-center justify-center p-8 border border-slate-100 shadow-inner`}>
-        {imageError ? (
-          <div className="text-6xl drop-shadow-xl">{visual.emoji}</div>
+        {!product.image || imageError ? (
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="text-6xl drop-shadow-xl">{visual.emoji}</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center px-2 line-clamp-2 max-w-[80%]">
+              {product.brand}
+            </div>
+          </div>
         ) : (
           <img 
             src={product.image} 
             alt={product.name} 
             onError={() => setImageError(true)}
+            loading="lazy"
             className="max-w-full max-h-full object-contain transform transition-transform duration-700 group-hover:scale-105 drop-shadow-lg"
           />
         )}

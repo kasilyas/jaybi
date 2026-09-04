@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { Product, StoreName, Language } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
+import { ProductImage } from './ProductImage';
 
 interface ComparisonModalProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
                       <th key={p.id} className="px-4 pb-8 align-top relative group">
                          <div className="flex flex-col items-center gap-4">
                             <div className="w-24 h-24 bg-slate-50 rounded-[1.5rem] p-4 shadow-inner border border-slate-100 relative">
-                               <img src={p.image} className="w-full h-full object-contain mix-blend-multiply" alt="" />
+                               <ProductImage product={p} className="w-full h-full flex items-center justify-center" imgClassName="w-full h-full object-contain mix-blend-multiply" />
                                <button 
                                   onClick={() => onRemove(p.id)}
                                   className={`absolute -top-2 -right-2 w-9 h-9 bg-rose-500 text-white rounded-xl flex items-center justify-center shadow-lg transition-all hover:scale-110 z-30`}

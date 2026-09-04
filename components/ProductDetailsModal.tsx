@@ -2,6 +2,7 @@
 import React from 'react';
 import { Product, StoreName, Language } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
+import { ProductImage } from './ProductImage';
 
 interface ProductDetailsModalProps {
   product: Product | null;
@@ -31,7 +32,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
         {/* Header Produit */}
         <div className="p-5 sm:p-8 pb-0 flex flex-col items-center text-center">
            <div className="w-32 h-32 bg-slate-50 rounded-[2rem] p-6 shadow-inner border border-slate-100 mb-6 relative group">
-              <img src={product.image} className="w-full h-full object-contain mix-blend-multiply transform transition-transform group-hover:scale-110" alt={product.name} />
+              <ProductImage product={product} className="w-full h-full flex items-center justify-center" imgClassName="w-full h-full object-contain mix-blend-multiply transform transition-transform group-hover:scale-110" showBrand />
               <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm">
                  <p className="text-[10px] font-black text-slate-400 uppercase">{product.weight}{product.unit}</p>
               </div>

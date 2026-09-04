@@ -2,6 +2,7 @@
 import React from 'react';
 import { Product, Language, StoreName } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
+import { ProductImage } from './ProductImage';
 
 interface BrandBrowserModuleProps {
   brandName: string;
@@ -39,7 +40,7 @@ export const BrandBrowserModule: React.FC<BrandBrowserModuleProps> = ({
         {brandProducts.map(p => (
           <div key={p.id} className={`bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm flex flex-col md:flex-row gap-10 hover:border-emerald-500 transition-all ${isRTL ? 'md:flex-row-reverse' : ''}`}>
              <div className="w-full md:w-48 aspect-square bg-slate-50 rounded-[2rem] p-6 flex items-center justify-center border border-slate-50 shadow-inner">
-                <img src={p.image} className="max-w-full max-h-full object-contain mix-blend-multiply" alt={p.name} />
+                <ProductImage product={p} className="w-full h-full flex items-center justify-center" imgClassName="max-w-full max-h-full object-contain mix-blend-multiply" showBrand />
              </div>
              
              <div className="flex-1 space-y-6">

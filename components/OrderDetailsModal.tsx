@@ -2,6 +2,7 @@
 import React from 'react';
 import { Order, Product, Language, StoreName, Pack } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
+import { ProductImage } from './ProductImage';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ isOpen, on
              return (
                <div key={idx} className={`flex items-center gap-5 p-4 bg-slate-50 rounded-2xl border ${isDiscounted ? 'border-amber-200 bg-amber-50/20' : 'border-slate-100'}`}>
                   <div className="w-12 h-12 bg-white rounded-xl p-2 shrink-0 border border-slate-200">
-                     <img src={product.image} className="w-full h-full object-contain" alt="" />
+                     <ProductImage product={product} className="w-full h-full flex items-center justify-center" imgClassName="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1">
                      <p className="text-xs font-bold text-slate-900">{product.name}</p>

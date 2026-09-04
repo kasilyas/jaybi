@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Product, CartItem, StoreName, Language, PromoCode, Pack } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
 import { DeleteConfirmation, AdminModal } from './AdminShared';
+import { ProductImage } from './ProductImage';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -115,7 +116,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                  <div key={`${item.productId}-${item.store}-${item.city}-${idx}`} className={`flex items-center gap-5 p-5 bg-white rounded-3xl border ${item.packId ? 'border-amber-200 bg-amber-50/20' : 'border-slate-100'} group shadow-sm hover:shadow-md transition-all ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <div className="shrink-0 relative">
                       <div className="w-16 h-16 bg-slate-50 rounded-2xl p-3 flex items-center justify-center border border-slate-100">
-                        <img src={item.product.image} className="max-w-full max-h-full object-contain mix-blend-multiply" alt="" />
+                        <ProductImage product={item.product} className="w-full h-full flex items-center justify-center" imgClassName="max-w-full max-h-full object-contain mix-blend-multiply" />
                       </div>
                       <div className="absolute -bottom-2 -right-2 w-7 h-7 bg-white rounded-lg p-1.5 border border-slate-200 shadow-lg">
                         <img src={STORES[item.targetStore as string]?.logo} className="w-full h-full object-contain" alt="" />
