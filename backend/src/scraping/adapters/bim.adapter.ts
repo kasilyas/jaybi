@@ -58,13 +58,22 @@ export class BimAdapter extends BaseAdapter {
       for (const pattern of pricePatterns) {
         const matches = text.matchAll(pattern);
         for (const match of matches) {
-          const name = match[1].trim().replace(/\s+/g, ' ');
+          let name = match[1].trim().replace(/\s+/g, ' ');
           const price = parseFloat(match[2].replace(',', '.'));
+
+          // Nettoie le nom : retire les préfixes "Le", "De plus,", "Par ailleurs," etc.
+          name = name.replace(/^(?:Le|La|Les|De plus,?|Par ailleurs,?|Enfin,?|De même,?|Ainsi,?)\s+/i, '');
+          // Retire les suffixes qui ne font pas partie du nom (après virgule)
+          name = name.replace(/,.*$/, '').trim();
+          // Retire "au format XXX g" etc.
+          name = name.replace(/\s+au\s+format\s+.*$/i, '').trim();
+          // Retire "en pot de" etc.
+          name = name.replace(/\s+en\s+pot\s+de\s+.*$/i, '').trim();
 
           if (name.length < 5 || price <= 0) continue;
 
-          // Extrait la marque si mentionnée
-          const brandMatch = text.match(/(?:marque|de\s+la\s+marque|signée?)\s+([A-Z][a-z]+)/i);
+          // Extrait la marque : mot capitalisé connu dans le texte
+          const brandMatch = text.match(/\b(Marisol|Bimbo|Ariel|Oni|Maxis|Maybelline|Bourjois|Flormar|Pastel|BYS|Absolute|Revuele|Seoul|Vaseline|IDC|AQC|Bim|Carrefour)\b/i);
           const brand = brandMatch?.[1];
 
           // Détecte promo (prix barré mentionné)

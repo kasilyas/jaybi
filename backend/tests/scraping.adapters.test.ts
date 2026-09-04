@@ -101,7 +101,7 @@ describe('Adaptateurs scraping — parsing avec fixtures HTML (sources vérifié
 
     it('nom et sourceType corrects', () => {
       expect(adapter.name).toBe('mymarket');
-      expect(adapter.sourceType).toBe('scraper');
+      expect(adapter.sourceType).toBe('api');
     });
   });
 

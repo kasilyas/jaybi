@@ -7,58 +7,70 @@ import { ScrapedProduct } from '../types.js';
  * Source vérifiée : carrefour.ma est un site corporate (catalogues PDF, magasins).
  * L'e-commerce Carrefour Maroc se fait via l'app mobile, pas via un site web scrapable.
  *
- * promomaroc.com publie les catalogues promos de toutes les enseignes marocaines
- * (Carrefour, Marjane, BIM, Kazyon, Aswak...) avec les prix en texte.
+ * promomaroc.com publie les catalogues promos Carrefour avec les prix dans des <li>.
+ * Format observé : "Ps5 slim digitale prix carrefour maroc 7499dh au lieu de 7999dh."
  *
- * Parsing : extraction de produits depuis les articles catalogue (similaire à BIM).
+ * Parsing : extraction depuis <li> (principal) + <p> (fallback).
  */
 export class CarrefourAdapter extends BaseAdapter {
   readonly name = 'carrefour';
   readonly sourceType = 'scraper' as const;
   protected baseUrl = 'https://promomaroc.com';
   protected userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  protected maxPages = 3;
 
   parsePage(html: string, city = 'Casablanca'): ScrapedProduct[] {
     const products: ScrapedProduct[] = [];
 
-    // Extrait le texte des paragraphes
+    // Récupère les blocs de texte : <li> (principal) + <p> et <h2>/<h3> (fallback)
     const textBlocks: string[] = [];
+
+    // <li> — c'est ici que sont les produits sur promomaroc.com
+    const liMatches = html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi);
+    for (const m of liMatches) textBlocks.push(m[1]);
+
+    // <p> et <h2>/<h3> — fallback
     const pMatches = html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
     for (const m of pMatches) textBlocks.push(m[1]);
     const hMatches = html.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi);
     for (const m of hMatches) textBlocks.push(m[1]);
 
-    // Patterns pour promomaroc.com :
+    // Patterns observés sur promomaroc.com :
+    // "Ps5 slim digitale prix carrefour maroc 7499dh au lieu de 7999dh."
+    // "Smartphone oppo A5 prix carrefour maroc 1999dh."
+    // "Lave vaisselle whirlpool prix carrefour 3999dh au lieu de 4399dhs."
+    // "Table de cuisine prix carrefour 649dh au lieu de 999dh."
     // "Smart TV skyworth 32p prix aswakasalam 1790 dh"
-    // "Smart TV samsung 43p prix carrefour 3990dh"
-    // "Refrigerateur combine whirlpool 343 litres prix carrefour 4999dh"
-    // "Machine a laver candy 9kg prix carrefour 2999 dh"
     const pricePatterns = [
-      // "Nom produit prix [mot] NNN dh"
-      /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+prix\s+\w+\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
+      // "Nom produit prix [mot] NNNdh" — le mot après prix peut être carrefour, maroc, aswakasalam, etc.
+      /([A-ZÀ-Ÿ][^.<]{5,100}?)\s+prix\s+\w+\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
+      // "Nom produit prix NNNdh" (sans mot entre prix et nombre)
+      /([A-ZÀ-Ÿ][^.<]{5,100}?)\s+prix\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
       // "Nom produit à NNN dh"
       /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+à\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
-      // "Nom produit revient à NNN dh"
-      /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+revient\s+à\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
     ];
 
     for (const block of textBlocks) {
-      const text = block.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '');
+      const text = block.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '').trim();
+      if (text.length < 10) continue;
 
       for (const pattern of pricePatterns) {
         const matches = text.matchAll(pattern);
         for (const match of matches) {
-          const name = match[1].trim().replace(/\s+/g, ' ');
+          let name = match[1].trim().replace(/\s+/g, ' ');
           const price = parseFloat(match[2].replace(',', '.'));
+
+          // Nettoie le nom : retire "prix carrefour maroc" etc.
+          name = name.replace(/\s+prix\s+carrefour.*$/i, '').replace(/\s+maroc\s*$/i, '').trim();
 
           if (name.length < 5 || price <= 0) continue;
 
-          // Promo : "au lieu de XX DH"
-          const oldPriceMatch = text.match(/au\s+lieu\s+de\s+(\d+[.,]?\d*)/i);
+          // Promo : "au lieu de NNN dh"
+          const oldPriceMatch = text.match(/au\s+lieu\s+de\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)?/i);
           const originalPrice = oldPriceMatch ? parseFloat(oldPriceMatch[1].replace(',', '.')) : undefined;
 
-          // Quantité
-          const qtyMatch = text.match(/(\d+[.,]?\d*)\s*(kg|g|L|ml|cl)/i);
+          // Quantité/poids
+          const qtyMatch = text.match(/(\d+[.,]?\d*)\s*(kg|g|L|ml|cl|litres?|pouces?|p)/i);
           const weight = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : undefined;
           const unit = qtyMatch?.[2] as any;
 
@@ -96,7 +108,7 @@ export class CarrefourAdapter extends BaseAdapter {
       return [];
     }
 
-    // Récupère la page des catalogues Carrefour
+    // Récupère la page tag/carrefour pour trouver les liens catalogues
     try {
       const html = await this.fetchWithRetry(`${this.baseUrl}/tag/carrefour/`);
       // Extrait les liens vers les catalogues Carrefour récents
@@ -104,12 +116,14 @@ export class CarrefourAdapter extends BaseAdapter {
       const urls = new Set<string>();
       for (const m of catalogueLinks) urls.add(m[1]);
 
-      const cataloguesToScrape = Array.from(urls).slice(0, 3);
+      const cataloguesToScrape = Array.from(urls).slice(0, this.maxPages);
+      console.log(`[scraping:${this.name}] ${cataloguesToScrape.length} catalogues trouvés`);
 
       for (const url of cataloguesToScrape) {
         try {
           const catHtml = await this.fetchWithRetry(url);
           const products = this.parsePage(catHtml);
+          console.log(`[scraping:${this.name}] ${url.split('/').pop()}: ${products.length} produits`);
           allProducts.push(...products);
           await this.rateLimit();
         } catch (err: any) {

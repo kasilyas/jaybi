@@ -25,23 +25,48 @@ export abstract class BaseAdapter {
         headers: { 'User-Agent': this.userAgent },
       });
       clearTimeout(timeout);
-      if (!res.ok) return true;
+      if (!res.ok) return true; // pas de robots.txt = tout autorisé
       const text = await res.text();
       const lines = text.split('\n');
       let ourAgent = false;
+      const disallowPaths: string[] = [];
+      const allowPaths: string[] = [];
+
       for (const line of lines) {
         const trimmed = line.trim().toLowerCase();
         if (trimmed.startsWith('user-agent:')) {
           const agent = trimmed.split(':')[1].trim();
           ourAgent = agent === '*' || agent.includes('jaybibot');
         }
-        if (ourAgent && trimmed.startsWith('disallow: /')) {
-          return false;
+        if (ourAgent) {
+          if (trimmed.startsWith('disallow:')) {
+            const path = trimmed.split(':')[1].trim();
+            if (path) disallowPaths.push(path);
+          }
+          if (trimmed.startsWith('allow:')) {
+            const path = trimmed.split(':')[1].trim();
+            if (path) allowPaths.push(path);
+          }
         }
       }
+
+      // Si "Disallow: /" (root only, nothing after) → tout est interdit
+      if (disallowPaths.includes('/')) return false;
+
+      // Vérifie si le chemin qu'on veut scraper est explicitement disallow
+      const targetPath = new URL(baseUrl).pathname;
+      for (const disallow of disallowPaths) {
+        // "Disallow: /admin" bloque "/admin" et "/admin/*"
+        if (targetPath.startsWith(disallow)) {
+          // Mais vérifie s'il y a un Allow plus spécifique
+          const hasSpecificAllow = allowPaths.some(a => targetPath.startsWith(a) && a.length > disallow.length);
+          if (!hasSpecificAllow) return false;
+        }
+      }
+
       return true;
     } catch {
-      return true;
+      return true; // si on peut pas vérifier, on autorise
     }
   }
 
