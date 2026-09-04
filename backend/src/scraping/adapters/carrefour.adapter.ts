@@ -2,92 +2,88 @@ import { BaseAdapter } from '../baseAdapter.js';
 import { ScrapedProduct } from '../types.js';
 
 /**
- * Adaptateur Carrefour — carrefour.ma
- * Source : scraping HTML
- * Parsing similaire à Marjane avec sélecteurs spécifiques Carrefour.
+ * Adaptateur Carrefour — via https://promomaroc.com (agrégateur)
+ *
+ * Source vérifiée : carrefour.ma est un site corporate (catalogues PDF, magasins).
+ * L'e-commerce Carrefour Maroc se fait via l'app mobile, pas via un site web scrapable.
+ *
+ * promomaroc.com publie les catalogues promos de toutes les enseignes marocaines
+ * (Carrefour, Marjane, BIM, Kazyon, Aswak...) avec les prix en texte.
+ *
+ * Parsing : extraction de produits depuis les articles catalogue (similaire à BIM).
  */
 export class CarrefourAdapter extends BaseAdapter {
   readonly name = 'carrefour';
   readonly sourceType = 'scraper' as const;
-  protected baseUrl = 'https://www.carrefour.ma';
+  protected baseUrl = 'https://promomaroc.com';
+  protected userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
   parsePage(html: string, city = 'Casablanca'): ScrapedProduct[] {
     const products: ScrapedProduct[] = [];
 
-    // Stratégie 1 : JSON-LD
-    const jsonLdMatches = html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
-    for (const match of jsonLdMatches) {
-      try {
-        const data = JSON.parse(match[1].trim());
-        const items = Array.isArray(data) ? data : [data];
-        for (const item of items) {
-          if (item['@type'] === 'Product' || (Array.isArray(item['@type']) && item['@type'].includes('Product'))) {
-            const p = this.parseJsonLdProduct(item, city);
-            if (p) products.push(p);
-          }
+    // Extrait le texte des paragraphes
+    const textBlocks: string[] = [];
+    const pMatches = html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+    for (const m of pMatches) textBlocks.push(m[1]);
+    const hMatches = html.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi);
+    for (const m of hMatches) textBlocks.push(m[1]);
+
+    // Patterns pour promomaroc.com :
+    // "Smart TV skyworth 32p prix aswakasalam 1790 dh"
+    // "Smart TV samsung 43p prix carrefour 3990dh"
+    // "Refrigerateur combine whirlpool 343 litres prix carrefour 4999dh"
+    // "Machine a laver candy 9kg prix carrefour 2999 dh"
+    const pricePatterns = [
+      // "Nom produit prix [mot] NNN dh"
+      /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+prix\s+\w+\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
+      // "Nom produit à NNN dh"
+      /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+à\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
+      // "Nom produit revient à NNN dh"
+      /([A-ZÀ-Ÿ][^.<]{5,80}?)\s+revient\s+à\s+(\d+[.,]?\d*)\s*(?:dh|dhs|DH|MAD|درهم)/gi,
+    ];
+
+    for (const block of textBlocks) {
+      const text = block.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '');
+
+      for (const pattern of pricePatterns) {
+        const matches = text.matchAll(pattern);
+        for (const match of matches) {
+          const name = match[1].trim().replace(/\s+/g, ' ');
+          const price = parseFloat(match[2].replace(',', '.'));
+
+          if (name.length < 5 || price <= 0) continue;
+
+          // Promo : "au lieu de XX DH"
+          const oldPriceMatch = text.match(/au\s+lieu\s+de\s+(\d+[.,]?\d*)/i);
+          const originalPrice = oldPriceMatch ? parseFloat(oldPriceMatch[1].replace(',', '.')) : undefined;
+
+          // Quantité
+          const qtyMatch = text.match(/(\d+[.,]?\d*)\s*(kg|g|L|ml|cl)/i);
+          const weight = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : undefined;
+          const unit = qtyMatch?.[2] as any;
+
+          // Évite les doublons
+          if (products.some(p => p.name === name && p.price === price)) continue;
+
+          products.push({
+            source: this.name,
+            sourceUrl: this.baseUrl,
+            scrapedAt: new Date(),
+            name,
+            price,
+            originalPrice,
+            weight,
+            unit,
+            available: true,
+            city,
+            storeName: 'Carrefour',
+            promotionLabel: originalPrice ? 'Promo catalogue' : undefined,
+          });
         }
-      } catch { /* ignore */ }
-    }
-
-    // Stratégie 2 : cartes produit Carrefour
-    const cardRegex = /<div[^>]*class="[^"]*(?:product-item|product-tile|cs-product|product)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-    const cardMatches = html.matchAll(cardRegex);
-    for (const match of cardMatches) {
-      const p = this.parseProductCard(match[1], city);
-      if (p) products.push(p);
-    }
-
-    // Stratégie 3 : parsing générique (fallback)
-    if (products.length === 0) {
-      const generic = html.matchAll(/<a[^>]*title="([^"]+)"[^>]*>[\s\S]{0,800}?<span[^>]*class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD)/gi);
-      for (const match of generic) {
-        products.push({
-          source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
-          name: match[1].trim(), price: parseFloat(match[2].replace(',', '.')) || 0,
-          available: true, city, storeName: 'Carrefour',
-        });
       }
     }
 
     return products;
-  }
-
-  private parseJsonLdProduct(item: any, city: string): ScrapedProduct | null {
-    try {
-      const name = item.name;
-      const price = item.offers?.price ?? item.offers?.[0]?.price;
-      if (!name || !price) return null;
-      return {
-        source: this.name, sourceUrl: item.url || this.baseUrl, scrapedAt: new Date(),
-        name, brand: item.brand?.name || (typeof item.brand === 'string' ? item.brand : undefined),
-        category: item.category, image: item.image, ean: item.gtin13 || item.sku,
-        price: parseFloat(price), available: !(item.offers?.availability || '').includes('OutOfStock'),
-        city, storeName: 'Carrefour',
-      };
-    } catch { return null; }
-  }
-
-  private parseProductCard(card: string, city: string): ScrapedProduct | null {
-    const nameMatch = card.match(/(?:title|alt|data-name)="([^"]+)"/i);
-    const name = nameMatch?.[1]?.trim();
-    if (!name) return null;
-
-    const priceMatch = card.match(/(\d+[.,]?\d*)\s*(?:DH|MAD|درهم)/i);
-    const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
-    if (price <= 0) return null;
-
-    const originalMatch = card.match(/<del[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD)/i)
-      || card.match(/class="[^"]*(?:old|original|compare)[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)/i);
-    const imgMatch = card.match(/<img[^>]*src="([^"]+)"/i);
-    const brandMatch = card.match(/(?:data-brand|data-manufacturer)="([^"]+)"/i);
-    const unavailable = /(?:rupture|out\s*of\s*stock|indisponible)/i.test(card);
-
-    return {
-      source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
-      name, brand: brandMatch?.[1]?.trim(), image: imgMatch?.[1],
-      price, originalPrice: originalMatch ? parseFloat(originalMatch[1].replace(',', '.')) : undefined,
-      available: !unavailable, city, storeName: 'Carrefour',
-    };
   }
 
   async scrape(): Promise<ScrapedProduct[]> {
@@ -100,21 +96,28 @@ export class CarrefourAdapter extends BaseAdapter {
       return [];
     }
 
-    const categories = ['/courses-en-ligne/epicerie', '/courses-en-ligne/boissons', '/courses-en-ligne/frais'];
-    for (const cat of categories) {
-      for (let page = 1; page <= this.maxPages; page++) {
+    // Récupère la page des catalogues Carrefour
+    try {
+      const html = await this.fetchWithRetry(`${this.baseUrl}/tag/carrefour/`);
+      // Extrait les liens vers les catalogues Carrefour récents
+      const catalogueLinks = html.matchAll(/href="(https:\/\/promomaroc\.com\/catalogue-carrefour[^"]+)"/gi);
+      const urls = new Set<string>();
+      for (const m of catalogueLinks) urls.add(m[1]);
+
+      const cataloguesToScrape = Array.from(urls).slice(0, 3);
+
+      for (const url of cataloguesToScrape) {
         try {
-          const url = `${this.baseUrl}${cat}?p=${page}`;
-          const html = await this.fetchWithRetry(url);
-          const products = this.parsePage(html);
-          if (products.length === 0) break;
+          const catHtml = await this.fetchWithRetry(url);
+          const products = this.parsePage(catHtml);
           allProducts.push(...products);
           await this.rateLimit();
         } catch (err: any) {
-          errors.push({ message: err.message, url: cat, timestamp: new Date().toISOString() });
-          break;
+          errors.push({ message: err.message, url, timestamp: new Date().toISOString() });
         }
       }
+    } catch (err: any) {
+      errors.push({ message: err.message, url: this.baseUrl, timestamp: new Date().toISOString() });
     }
 
     if (errors.length > 0) console.warn(`[scraping:${this.name}] ${errors.length} erreurs`);

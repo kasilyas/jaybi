@@ -1,9 +1,10 @@
 
 export enum StoreName {
   MARJANE = 'Marjane',
-  CARREFOUR = 'Carrefour',
+  MYMARKET = 'MyMarket',
+  ASWAK = 'Aswak Assalam',
   BIM = 'BIM',
-  ASWAK = 'Aswak Assalam'
+  CARREFOUR = 'Carrefour'
 }
 
 export type Language = 'fr' | 'en' | 'es' | 'zh' | 'ar';

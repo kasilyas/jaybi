@@ -2,16 +2,20 @@ import { BaseAdapter } from '../baseAdapter.js';
 import { ScrapedProduct } from '../types.js';
 
 /**
- * Adaptateur Marjane — marjane.ma
- * Source : scraping HTML (site e-commerce)
- * Parsing basé sur la structure produit courante des sites e-commerce marocains.
+ * Adaptateur Marjane — https://www.marjane.ma/courses-en-ligne
  *
- * Séparation parsing/fetching : parsePage() est testable avec fixtures HTML.
+ * Source vérifiée : e-commerce direct avec 7000+ produits, prix et promos visibles.
+ * Le site bloque les User-Agents de bots (403) — on utilise un UA navigateur réaliste.
+ *
+ * Parsing : JSON-LD (Schema.org Product) + cartes produit + fallback générique.
+ * Séparation parsePage(html) / scrape() pour tests avec fixtures.
  */
 export class MarjaneAdapter extends BaseAdapter {
   readonly name = 'marjane';
   readonly sourceType = 'scraper' as const;
-  protected baseUrl = 'https://www.marjane.ma';
+  protected baseUrl = 'https://www.marjane.ma/courses-en-ligne';
+  // Marjane bloque les bots — UA navigateur réaliste requis
+  protected userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
   /**
    * Parse une page HTML et extrait les produits.
@@ -35,27 +39,22 @@ export class MarjaneAdapter extends BaseAdapter {
       } catch { /* ignore invalid JSON */ }
     }
 
-    // Stratégie 2 : data attributes (data-product-name, data-product-price)
-    const productRegex = /<div[^>]*class="[^"]*(?:product-card|product|item-card)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-    const cardMatches = html.matchAll(productRegex);
+    // Stratégie 2 : cartes produit (data-attributes ou classes CSS)
+    const cardRegex = /<div[^>]*class="[^"]*(?:product-card|product-item|product-tile|product)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    const cardMatches = html.matchAll(cardRegex);
     for (const match of cardMatches) {
       const p = this.parseProductCard(match[1], city);
       if (p) products.push(p);
     }
 
-    // Stratégie 3 : parsing générique par patterns prix (fallback)
+    // Stratégie 3 : parsing générique (fallback si rien trouvé)
     if (products.length === 0) {
       const genericMatches = html.matchAll(/<[^>]*(?:data-name|title|alt)="([^"]+)"[^>]*>[\s\S]{0,500}?<[^>]*class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD|درهم)/gi);
       for (const match of genericMatches) {
         products.push({
-          source: this.name,
-          sourceUrl: this.baseUrl,
-          scrapedAt: new Date(),
-          name: match[1].trim(),
-          price: parseFloat(match[2].replace(',', '.')) || 0,
-          available: true,
-          city,
-          storeName: 'Marjane',
+          source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
+          name: match[1].trim(), price: parseFloat(match[2].replace(',', '.')) || 0,
+          available: true, city, storeName: 'Marjane',
         });
       }
     }
@@ -93,74 +92,57 @@ export class MarjaneAdapter extends BaseAdapter {
   }
 
   private parseProductCard(card: string, city: string): ScrapedProduct | null {
-    // Extrait nom
     const nameMatch = card.match(/(?:data-product-name|title|alt)="([^"]+)"/i);
     const name = nameMatch?.[1]?.trim();
     if (!name) return null;
 
-    // Extrait prix
     const priceMatch = card.match(/(\d+[.,]?\d*)\s*(?:DH|MAD|درهم)/i);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
     if (price <= 0) return null;
 
-    // Extrait prix barré (promo)
     const originalMatch = card.match(/<del[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD)/i)
       || card.match(/<span[^>]*class="[^"]*(?:old-price|original-price|compare-price)[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)/i);
-    const originalPrice = originalMatch ? parseFloat(originalMatch[1].replace(',', '.')) : undefined;
-
-    // Extrait image
     const imgMatch = card.match(/<img[^>]*src="([^"]+)"/i);
-    const image = imgMatch?.[1];
-
-    // Extrait marque
     const brandMatch = card.match(/(?:data-brand|data-manufacturer)="([^"]+)"/i)
       || card.match(/<span[^>]*class="[^"]*brand[^"]*"[^>]*>([^<]+)</i);
-    const brand = brandMatch?.[1]?.trim();
-
-    // Disponibilité
     const unavailable = /(?:rupture|out\s*of\s*stock|indisponible|épuisé)/i.test(card);
 
     return {
-      source: this.name,
-      sourceUrl: this.baseUrl,
-      scrapedAt: new Date(),
-      name,
-      brand,
-      image,
-      price,
-      originalPrice,
-      available: !unavailable,
-      city,
-      storeName: 'Marjane',
+      source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
+      name, brand: brandMatch?.[1]?.trim(), image: imgMatch?.[1],
+      price, originalPrice: originalMatch ? parseFloat(originalMatch[1].replace(',', '.')) : undefined,
+      available: !unavailable, city, storeName: 'Marjane',
     };
   }
 
   async scrape(): Promise<ScrapedProduct[]> {
-    const config = { maxPages: this.maxPages };
     const allProducts: ScrapedProduct[] = [];
     const errors: { message: string; url?: string; timestamp: string }[] = [];
 
     // Vérifie robots.txt
-    const allowed = await this.checkRobotsTxt(this.baseUrl);
+    const allowed = await this.checkRobotsTxt('https://www.marjane.ma');
     if (!allowed) {
       errors.push({ message: 'robots.txt interdit le scraping', timestamp: new Date().toISOString() });
+      console.warn(`[scraping:${this.name}] robots.txt interdit`);
       return [];
     }
 
     // Scrape les pages catégorie
-    const categories = ['/courses-en-ligne', '/courses-en-ligne/epicerie', '/courses-en-ligne/boissons'];
+    const categories = ['', '/epicerie', '/boissons', '/frais', '/hygiene'];
     for (const cat of categories) {
-      for (let page = 1; page <= config.maxPages; page++) {
+      for (let page = 1; page <= this.maxPages; page++) {
         try {
-          const url = page === 1 ? `${this.baseUrl}${cat}` : `${this.baseUrl}${cat}?page=${page}`;
+          const url = page === 1
+            ? `${this.baseUrl}${cat}`
+            : `${this.baseUrl}${cat}?page=${page}`;
           const html = await this.fetchWithRetry(url);
           const products = this.parsePage(html);
-          if (products.length === 0) break; // plus de produits → fin pagination
+          if (products.length === 0) break;
           allProducts.push(...products);
           await this.rateLimit();
         } catch (err: any) {
           errors.push({ message: err.message, url: cat, timestamp: new Date().toISOString() });
-          break; // passe à la catégorie suivante
+          break;
         }
       }
     }

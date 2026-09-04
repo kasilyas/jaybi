@@ -2,32 +2,23 @@ import { BaseAdapter } from '../baseAdapter.js';
 import { ScrapedProduct } from '../types.js';
 
 /**
- * Adaptateur Aswak Assalam — https://www.aswakdelivery.com
+ * Adaptateur MyMarket — https://mymarket.ma
  *
- * Source vérifiée : Aswak Delivery (e-commerce), 6000+ articles.
- * Le site est une SPA (React/Vue) qui nécessite de sélectionner une ville avant
- * d'accéder au catalogue. Le scraping HTML direct peut être limité.
+ * Source vérifiée : hypermarché en ligne, 10000 produits, livraison Casa + tout Maroc.
+ * Site accessible (pas de 403), structure type WooCommerce/Shopify.
  *
- * URLs alternatives :
- * - aswakdelivery.com (livraison) — nécessite sélection ville
- * - aswakdrive.com (drive) — Casa + Rabat seulement
- *
- * Note : si le site est une SPA rendue côté client, le HTML retourné par fetch
- * peut ne pas contenir les produits. Dans ce cas, il faudra :
- * 1. Utiliser l'API interne du site (si détectée)
- * 2. Ou utiliser Playwright (rendu JS) — phase v0.4
- * 3. Ou fallback CSV manuel
+ * Parsing : JSON-LD + cartes produit + fallback générique.
  */
-export class AswakAdapter extends BaseAdapter {
-  readonly name = 'aswak';
+export class MyMarketAdapter extends BaseAdapter {
+  readonly name = 'mymarket';
   readonly sourceType = 'scraper' as const;
-  protected baseUrl = 'https://www.aswakdelivery.com';
+  protected baseUrl = 'https://mymarket.ma';
   protected userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
   parsePage(html: string, city = 'Casablanca'): ScrapedProduct[] {
     const products: ScrapedProduct[] = [];
 
-    // JSON-LD
+    // Stratégie 1 : JSON-LD
     const jsonLdMatches = html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
     for (const match of jsonLdMatches) {
       try {
@@ -42,22 +33,22 @@ export class AswakAdapter extends BaseAdapter {
       } catch { /* ignore */ }
     }
 
-    // Cartes produit
-    const cardRegex = /<div[^>]*class="[^"]*(?:product|item|article|card)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    // Stratégie 2 : cartes produit (WooCommerce type)
+    const cardRegex = /<div[^>]*class="[^"]*(?:product|product-item|wc-block|item)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
     const cardMatches = html.matchAll(cardRegex);
     for (const match of cardMatches) {
       const p = this.parseProductCard(match[1], city);
       if (p) products.push(p);
     }
 
-    // Générique
+    // Stratégie 3 : générique
     if (products.length === 0) {
-      const generic = html.matchAll(/<[^>]*(?:title|alt)="([^"]+)"[^>]*>[\s\S]{0,500}?(\d+[.,]?\d*)\s*(?:DH|MAD|درهم)/gi);
+      const generic = html.matchAll(/<a[^>]*href="([^"]*produit[^"]*)"[^>]*>[\s\S]{0,300}?<[^>]*>([^<]{3,80})<[\s\S]{0,300}?<span[^>]*class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD|درهم)/gi);
       for (const match of generic) {
         products.push({
-          source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
-          name: match[1].trim(), price: parseFloat(match[2].replace(',', '.')) || 0,
-          available: true, city, storeName: 'Aswak Assalam',
+          source: this.name, sourceUrl: match[1] || this.baseUrl, scrapedAt: new Date(),
+          name: match[2].trim(), price: parseFloat(match[3].replace(',', '.')) || 0,
+          available: true, city, storeName: 'MyMarket',
         });
       }
     }
@@ -75,7 +66,7 @@ export class AswakAdapter extends BaseAdapter {
         name, brand: item.brand?.name || (typeof item.brand === 'string' ? item.brand : undefined),
         category: item.category, image: item.image, ean: item.gtin13 || item.sku,
         price: parseFloat(price), available: !(item.offers?.availability || '').includes('OutOfStock'),
-        city, storeName: 'Aswak Assalam',
+        city, storeName: 'MyMarket',
       };
     } catch { return null; }
   }
@@ -90,19 +81,22 @@ export class AswakAdapter extends BaseAdapter {
     const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
     if (price <= 0) return null;
 
-    const originalMatch = card.match(/<del[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD)/i);
+    const originalMatch = card.match(/<del[^>]*>[\s\S]*?(\d+[.,]?\d*)\s*(?:DH|MAD)/i)
+      || card.match(/class="[^"]*(?:old|original|compare|regular)[^"]*"[^>]*>[\s\S]*?(\d+[.,]?\d*)/i);
     const imgMatch = card.match(/<img[^>]*src="([^"]+)"/i);
-    const unavailable = /(?:rupture|indisponible|épuisé)/i.test(card);
+    const brandMatch = card.match(/(?:data-brand|data-manufacturer)="([^"]+)"/i);
+    const unavailable = /(?:rupture|out\s*of\s*stock|indisponible|épuisé)/i.test(card);
 
     return {
       source: this.name, sourceUrl: this.baseUrl, scrapedAt: new Date(),
-      name, image: imgMatch?.[1],
+      name, brand: brandMatch?.[1]?.trim(), image: imgMatch?.[1],
       price, originalPrice: originalMatch ? parseFloat(originalMatch[1].replace(',', '.')) : undefined,
-      available: !unavailable, city, storeName: 'Aswak Assalam',
+      available: !unavailable, city, storeName: 'MyMarket',
     };
   }
 
   async scrape(): Promise<ScrapedProduct[]> {
+    const allProducts: ScrapedProduct[] = [];
     const errors: { message: string; url?: string; timestamp: string }[] = [];
 
     const allowed = await this.checkRobotsTxt(this.baseUrl);
@@ -111,11 +105,15 @@ export class AswakAdapter extends BaseAdapter {
       return [];
     }
 
-    const allProducts: ScrapedProduct[] = [];
-
-    // Aswak Delivery est une SPA — on tente les pages catégorie directes
-    // Si le HTML ne contient pas de produits (rendu JS), on log un warning
-    const categories = ['/boutique/', '/categorie/epicerie/', '/categorie/boissons/', '/categorie/frais/'];
+    // Catégories MyMarket (vérifiées sur le site)
+    const categories = [
+      '/categorie-produit/epicerie-sucree/',
+      '/categorie-produit/epicerie-salee/',
+      '/categorie-produit/boissons/',
+      '/categorie-produit/cremerie/',
+      '/categorie-produit/hygiene-et-beaute/',
+      '/categorie-produit/entretien-et-maison/',
+    ];
 
     for (const cat of categories) {
       for (let page = 1; page <= this.maxPages; page++) {
@@ -123,13 +121,7 @@ export class AswakAdapter extends BaseAdapter {
           const url = page === 1 ? `${this.baseUrl}${cat}` : `${this.baseUrl}${cat}page/${page}/`;
           const html = await this.fetchWithRetry(url);
           const products = this.parsePage(html);
-          if (products.length === 0) {
-            // SPA détectée — pas de produits dans le HTML statique
-            if (page === 1) {
-              console.warn(`[scraping:${this.name}] ${cat}: HTML vide (SPA ?). Fallback CSV recommandé.`);
-            }
-            break;
-          }
+          if (products.length === 0) break;
           allProducts.push(...products);
           await this.rateLimit();
         } catch (err: any) {
@@ -139,10 +131,7 @@ export class AswakAdapter extends BaseAdapter {
       }
     }
 
-    if (allProducts.length === 0) {
-      console.warn(`[scraping:${this.name}] Aucun produit extrait. Le site est probablement une SPA (rendu JS). Utiliser Playwright (v0.4) ou import CSV.`);
-    }
-
+    if (errors.length > 0) console.warn(`[scraping:${this.name}] ${errors.length} erreurs`);
     return allProducts;
   }
 }
