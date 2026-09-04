@@ -202,7 +202,7 @@ async function main() {
 
   // Sync configs par défaut — sources vérifiées
   const adapterConfigs = [
-    { adapter: 'marjane', sourceType: 'scraper', sourceUrl: 'https://www.marjane.ma/courses-en-ligne', notes: 'E-commerce direct, 7000+ produits' },
+    { adapter: 'marjane', sourceType: 'api', sourceUrl: 'https://api.apify.com/v2/datasets/ffurZD3yqDhvhSjXx/items', notes: 'Apify dataset — Marjane Mall (marjanemall.ma), 19000+ produits, contourne Cloudflare' },
     { adapter: 'mymarket', sourceType: 'scraper', sourceUrl: 'https://mymarket.ma', notes: 'Hypermarché en ligne, 10000 produits' },
     { adapter: 'aswak', sourceType: 'scraper', sourceUrl: 'https://www.aswakdelivery.com', notes: 'Aswak Delivery, 6000 articles (SPA, sélection ville requise)' },
     { adapter: 'bim', sourceType: 'scraper', sourceUrl: 'https://www.cataloguebim.com', notes: 'Agrégateur non-officiel — catalogues BIM avec prix (pas de e-commerce direct sur bim.ma)' },

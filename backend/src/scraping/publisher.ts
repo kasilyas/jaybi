@@ -6,13 +6,11 @@ import { addAuditLog } from '../lib/audit.js';
  * Publie les changements approuvés en base.
  * RÈGLE D'OR : seul le publisher écrit dans les tables métier.
  *
- * Stratégie : batch par petits groupes (50 produits/transaction) pour éviter
- * les timeouts de transaction Prisma (500+ produits en une transaction = crash).
+ * Stratégie : pas de transaction (Prisma bug avec relations dans tx).
+ * Batching par 50 produits avec cache stores/brands pour performance.
  */
 
 const BATCH_SIZE = 50;
-// Timeout Prisma étendu pour les batchs (défaut 5s trop court)
-const TX_TIMEOUT_MS = 30000;
 
 export async function publishChanges(
   changes: SyncChanges,
@@ -22,13 +20,13 @@ export async function publishChanges(
   let productsNew = 0;
   let pricesUpdated = 0;
 
-  // Cache stores et brands pour éviter les upserts répétitifs
+  // Cache stores et brands
   const storeCache = new Map<string, string>();
   const brandCache = new Map<string, string>();
 
-  async function getOrCreateStore(tx: any, name: string): Promise<string> {
+  async function getOrCreateStore(name: string): Promise<string> {
     if (storeCache.has(name)) return storeCache.get(name)!;
-    const store = await tx.store.upsert({
+    const store = await prisma.store.upsert({
       where: { name },
       update: {},
       create: { name },
@@ -37,10 +35,10 @@ export async function publishChanges(
     return store.id;
   }
 
-  async function getOrCreateBrand(tx: any, name: string): Promise<string | null> {
+  async function getOrCreateBrand(name: string): Promise<string | null> {
     if (!name) return null;
     if (brandCache.has(name)) return brandCache.get(name)!;
-    const brand = await tx.brand.upsert({
+    const brand = await prisma.brand.upsert({
       where: { name },
       update: {},
       create: { name },
@@ -49,32 +47,82 @@ export async function publishChanges(
     return brand.id;
   }
 
-  // 1. Nouveaux produits — par batchs
+  // 1. Nouveaux produits — par batchs sans transaction
   const newProducts = changes.newProducts;
   for (let i = 0; i < newProducts.length; i += BATCH_SIZE) {
     const batch = newProducts.slice(i, i + BATCH_SIZE);
-    console.log(`[publisher] Batch nouveaux produits ${i / BATCH_SIZE + 1}/${Math.ceil(newProducts.length / BATCH_SIZE)} (${batch.length} produits)`);
+    if (i % 500 === 0) {
+      console.log(`[publisher] Progression: ${i}/${newProducts.length} (${Math.round(i / newProducts.length * 100)}%)`);
+    }
 
-    await prisma.$transaction(async (tx) => {
-      for (const np of batch) {
-        const n = np.normalized;
-        const brandId = await getOrCreateBrand(tx, n.brand || '');
-        const storeId = await getOrCreateStore(tx, n.storeName);
+    for (const np of batch) {
+      const n = np.normalized;
+      const brandId = await getOrCreateBrand(n.brand || '');
+      const storeId = await getOrCreateStore(n.storeName);
 
-        const product = await tx.product.create({
+      // findFirst pour vérifier si le produit existe déjà (par EAN)
+      let product = n.ean
+        ? await prisma.product.findFirst({ where: { ean: n.ean } })
+        : null;
+
+      if (product) {
+        // Update — ProductUpdateInput accepte brandId direct
+        await prisma.product.update({
+          where: { id: product.id },
           data: {
             name: n.name,
-            brandId,
+            brandId: brandId || null,
             category: n.category ?? 'Autre',
             image: n.image ?? '',
             unit: n.unit,
             weight: n.weight,
-            ean: n.ean,
             isActive: true,
           },
         });
+      } else {
+        // Create — brandId conditionnel pour éviter l'inférence Prisma
+        const productData: any = {
+          name: n.name,
+          category: n.category ?? 'Autre',
+          image: n.image ?? '',
+          unit: n.unit,
+          weight: n.weight ?? 0,
+          ean: n.ean,
+          isActive: true,
+        };
+        if (brandId) productData.brandId = brandId;
+        product = await prisma.product.create({ data: productData });
+      }
 
-        await tx.priceEntry.create({
+      // Price entry — upsert sur (productId, storeId, city)
+      const existingPrice = await prisma.priceEntry.findFirst({
+        where: { productId: product.id, storeId, city: n.city },
+      });
+
+      if (existingPrice) {
+        // Archive old price
+        await prisma.priceHistory.create({
+          data: {
+            priceEntryId: existingPrice.id,
+            price: existingPrice.price,
+            originalPrice: existingPrice.originalPrice,
+            available: existingPrice.available,
+          },
+        });
+        // Update price
+        await prisma.priceEntry.update({
+          where: { id: existingPrice.id },
+          data: {
+            price: n.price,
+            originalPrice: n.originalPrice,
+            promotionExpiresAt: n.promotionExpiresAt,
+            available: n.available,
+            lastUpdated: new Date(),
+          },
+        });
+        pricesUpdated++;
+      } else {
+        await prisma.priceEntry.create({
           data: {
             productId: product.id,
             storeId,
@@ -85,64 +133,61 @@ export async function publishChanges(
             available: n.available,
           },
         });
-
         productsNew++;
       }
-    }, { timeout: TX_TIMEOUT_MS });
+    }
   }
 
-  // 2. Prix existants : archive + update — par batchs
+  // 2. Prix existants : archive + update
   const priceChanges = changes.priceChanges;
   for (let i = 0; i < priceChanges.length; i += BATCH_SIZE) {
     const batch = priceChanges.slice(i, i + BATCH_SIZE);
 
-    await prisma.$transaction(async (tx) => {
-      for (const pc of batch) {
-        if (!pc.priceEntryId) {
-          const storeId = await getOrCreateStore(tx, pc.storeName);
-          await tx.priceEntry.create({
-            data: {
-              productId: pc.productId,
-              storeId,
-              city: pc.city,
-              price: pc.newPrice,
-              originalPrice: pc.originalPrice,
-              promotionExpiresAt: pc.promotionExpiresAt,
-              available: pc.newAvailable,
-            },
-          });
-          pricesUpdated++;
-          continue;
-        }
-
-        const existing = await tx.priceEntry.findUnique({ where: { id: pc.priceEntryId } });
-        if (existing) {
-          await tx.priceHistory.create({
-            data: {
-              priceEntryId: existing.id,
-              price: existing.price,
-              originalPrice: existing.originalPrice,
-              available: existing.available,
-            },
-          });
-
-          await tx.priceEntry.update({
-            where: { id: pc.priceEntryId },
-            data: {
-              price: pc.newPrice,
-              originalPrice: pc.originalPrice,
-              promotionExpiresAt: pc.promotionExpiresAt,
-              available: pc.newAvailable,
-              lastUpdated: new Date(),
-            },
-          });
-          pricesUpdated++;
-        }
+    for (const pc of batch) {
+      if (!pc.priceEntryId) {
+        const storeId = await getOrCreateStore(pc.storeName);
+        await prisma.priceEntry.create({
+          data: {
+            productId: pc.productId,
+            storeId,
+            city: pc.city,
+            price: pc.newPrice,
+            originalPrice: pc.originalPrice,
+            promotionExpiresAt: pc.promotionExpiresAt,
+            available: pc.newAvailable,
+          },
+        });
+        pricesUpdated++;
+        continue;
       }
-    }, { timeout: TX_TIMEOUT_MS });
+
+      const existing = await prisma.priceEntry.findUnique({ where: { id: pc.priceEntryId } });
+      if (existing) {
+        await prisma.priceHistory.create({
+          data: {
+            priceEntryId: existing.id,
+            price: existing.price,
+            originalPrice: existing.originalPrice,
+            available: existing.available,
+          },
+        });
+
+        await prisma.priceEntry.update({
+          where: { id: pc.priceEntryId },
+          data: {
+            price: pc.newPrice,
+            originalPrice: pc.originalPrice,
+            promotionExpiresAt: pc.promotionExpiresAt,
+            available: pc.newAvailable,
+            lastUpdated: new Date(),
+          },
+        });
+        pricesUpdated++;
+      }
+    }
   }
 
-  // 3. Audit log (hors transaction)
+  // 3. Audit log
   await addAuditLog({
     action: 'SYNC_PUBLISHED',
     user: adminEmail,

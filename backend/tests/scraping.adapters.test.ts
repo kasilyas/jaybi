@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { MarjaneAdapter } from '../src/scraping/adapters/marjane.adapter.js';
+import { MarjaneApifyAdapter } from '../src/scraping/adapters/marjane.apify.adapter.js';
 import { MyMarketAdapter } from '../src/scraping/adapters/mymarket.adapter.js';
 import { CarrefourAdapter } from '../src/scraping/adapters/carrefour.adapter.js';
 import { BimAdapter } from '../src/scraping/adapters/bim.adapter.js';
@@ -17,50 +17,82 @@ function loadFixture(name: string): string {
 describe('Adaptateurs scraping — parsing avec fixtures HTML (sources vérifiées)', () => {
 
   // ============================================================
-  // Marjane — marjane.ma/courses-en-ligne (e-commerce direct)
+  // Marjane — Apify dataset (marjanemall.ma, contourne Cloudflare)
   // ============================================================
-  describe('MarjaneAdapter (marjane.ma)', () => {
-    const adapter = new MarjaneAdapter();
+  describe('MarjaneApifyAdapter (marjanemall.ma via Apify)', () => {
+    const adapter = new MarjaneApifyAdapter();
 
-    it('parse une page avec JSON-LD (2 produits)', () => {
-      const html = loadFixture('marjane.html');
-      const products = adapter.parsePage(html);
-      expect(products.length).toBeGreaterThanOrEqual(2);
+    const sampleApifyProduct = {
+      name: 'Gum Dentifrice Original White Blancheur 75ml',
+      sku: 'AUC0070942303132',
+      price: 103.5,
+      productUrl: 'https://www.marjanemall.ma/p/gum-dentifrice-original-white-blancheur-75ml-auc0070942303132',
+      extension_attributes: {
+        regular_price: '103.50',
+        final_price: '63.48',
+        eco_discount: 'Eco. de 38%',
+        brand_name: 'GUM',
+        stock_item: { is_in_stock: true, qty: 150 },
+        item_categories: [{
+          item_category: 'Default Category',
+          item_category2: 'Hygiène dentaire',
+          item_category3: 'Hygiène',
+          item_category4: 'Beauté - Santé',
+        }],
+      },
+      custom_attributes: [
+        { attribute_code: 'maas_gtin', value: '0070942303132' },
+        { attribute_code: 'main_image', value: 'https://cdnprd.marjanemall.ma/img.webp' },
+      ],
+      media_gallery_entries: [{ file: 'https://cdnprd.marjanemall.ma/img.webp' }],
+    };
 
-      const lait = products.find(p => p.name.includes('Lait Centrale'));
-      expect(lait).toBeDefined();
-      expect(lait!.price).toBe(7.5);
-      expect(lait!.brand).toBe('Centrale');
-      expect(lait!.ean).toBe('6111234567890');
-      expect(lait!.storeName).toBe('Marjane');
-      expect(lait!.available).toBe(true);
+    it('parse un produit Apify avec promo', () => {
+      const product = adapter.parseApifyProduct(sampleApifyProduct);
+      expect(product).toBeDefined();
+      expect(product!.name).toBe('Gum Dentifrice Original White Blancheur 75ml');
+      expect(product!.price).toBe(63.48); // final_price
+      expect(product!.originalPrice).toBe(103.5); // regular_price
+      expect(product!.brand).toBe('GUM');
+      expect(product!.ean).toBe('0070942303132');
+      expect(product!.available).toBe(true);
+      expect(product!.storeName).toBe('Marjane');
+      expect(product!.promotionLabel).toContain('38');
     });
 
-    it('parse les cartes produit (Farine Dari avec promo)', () => {
-      const html = loadFixture('marjane.html');
-      const products = adapter.parsePage(html);
-      const farine = products.find(p => p.name.includes('Farine Dari'));
-      expect(farine).toBeDefined();
-      expect(farine!.price).toBe(8.5);
-      expect(farine!.originalPrice).toBe(10.0);
-      expect(farine!.brand).toBe('Dari');
+    it('parse un produit sans promo (final_price = regular_price)', () => {
+      const noPromo = JSON.parse(JSON.stringify(sampleApifyProduct));
+      noPromo.extension_attributes.final_price = '103.50';
+      noPromo.extension_attributes.eco_discount = '';
+      const product = adapter.parseApifyProduct(noPromo);
+      expect(product!.price).toBe(103.5);
+      expect(product!.originalPrice).toBeUndefined();
+      expect(product!.promotionLabel).toBeUndefined();
     });
 
-    it('détecte rupture de stock (Café Atlas)', () => {
-      const html = loadFixture('marjane.html');
-      const products = adapter.parsePage(html);
-      const cafe = products.find(p => p.name.includes('Café Atlas'));
-      expect(cafe).toBeDefined();
-      expect(cafe!.available).toBe(false);
+    it('parse un produit en rupture de stock', () => {
+      const oos = JSON.parse(JSON.stringify(sampleApifyProduct));
+      oos.extension_attributes.stock_item.is_in_stock = false;
+      const product = adapter.parseApifyProduct(oos);
+      expect(product!.available).toBe(false);
     });
 
-    it('retourne [] pour HTML vide', () => {
-      expect(adapter.parsePage('')).toHaveLength(0);
+    it('extrait la catégorie correcte', () => {
+      const product = adapter.parseApifyProduct(sampleApifyProduct);
+      expect(product!.category).toBe('Hygiène');
+    });
+
+    it('retourne null pour produit sans nom', () => {
+      expect(adapter.parseApifyProduct({ price: 10 })).toBeNull();
+    });
+
+    it('retourne null pour produit sans prix', () => {
+      expect(adapter.parseApifyProduct({ name: 'Test', extension_attributes: {} })).toBeNull();
     });
 
     it('nom et sourceType corrects', () => {
       expect(adapter.name).toBe('marjane');
-      expect(adapter.sourceType).toBe('scraper');
+      expect(adapter.sourceType).toBe('api');
     });
   });
 
