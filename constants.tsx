@@ -595,9 +595,10 @@ export const Icons = {
 
 export const STORES: Record<StoreName, { logo: string; color: string }> = {
   [StoreName.MARJANE]: { logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Marjane_Logo.svg/1200px-Marjane_Logo.svg.png', color: 'bg-blue-600' },
-  [StoreName.CARREFOUR]: { logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Carrefour_logo.svg/1200px-Carrefour_logo.svg.png', color: 'bg-blue-800' },
-  [StoreName.BIM]: { logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Bim_Logo.svg/1200px-Bim_Logo.svg.png', color: 'bg-red-600' },
+  [StoreName.MYMARKET]: { logo: '', color: 'bg-orange-600' },
   [StoreName.ASWAK]: { logo: 'https://upload.wikimedia.org/wikipedia/fr/thumb/c/ca/Aswak_Assalam_logo.png/1200px-Aswak_Assalam_logo.png', color: 'bg-green-700' },
+  [StoreName.BIM]: { logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Bim_Logo.svg/1200px-Bim_Logo.svg.png', color: 'bg-red-600' },
+  [StoreName.CARREFOUR]: { logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Carrefour_logo.svg/1200px-Carrefour_logo.svg.png', color: 'bg-blue-800' },
 };
 
 export const CATEGORY_VISUALS: Record<string, { emoji: string; color: string }> = {

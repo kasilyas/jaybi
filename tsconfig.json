@@ -26,5 +26,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["backend", "dist", "node_modules"]
+  "exclude": ["backend", "dist", "node_modules", "e2e"]
 }
