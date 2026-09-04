@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Product, PlatformConfig, User, Order, Pack, Language, AuditLog, Store, PromoCode, SubscriptionTier, Brand, PriceReport, SecurityAlert } from '../types';
+import { Product, PlatformConfig, User, Order, Pack, Language, AuditLog, Store, PromoCode, SubscriptionTier, Brand, PriceReport, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges } from '../types';
 import { Icons } from '../constants';
 import * as api from '../lib/api';
 import { ProductModule } from './AdminProductModule';
@@ -12,6 +12,7 @@ import { SubscriptionModule } from './AdminSubscriptionModule';
 import { BrandModule } from './AdminBrandModule';
 import { AdminReportsModule } from './AdminReportsModule';
 import { AdminSecurityModule } from './AdminSecurityModule';
+import { AdminSyncCenter } from './AdminSyncCenter';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   isOpen, onClose, products, packs, users, orders, stores, promoCodes, brands, priceReports, auditLogs, config, language, onUpdateProducts, onUpdatePacks, onUpdateUsers, onUpdateStores, onUpdatePromoCodes, onUpdateBrands, onUpdatePriceReports, onAddLog, onUpdateConfig, currentUserEmail
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'users' | 'stores' | 'brands' | 'campaigns' | 'promo' | 'subs' | 'reports' | 'audit' | 'security' | 'sync'>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -58,6 +59,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // --- Sécurité (alertes injection + utilisateurs suspendus) ---
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [suspendedUsers, setSuspendedUsers] = useState<any[]>([]);
+
+  // --- Sync Center (scraping) ---
+  const [syncRuns, setSyncRuns] = useState<ScrapingSyncRun[]>([]);
+  const [syncStatus, setSyncStatus] = useState<ScrapingStatus[]>([]);
+  const [syncConfigs, setSyncConfigs] = useState<SyncConfig[]>([]);
+
+  const refreshSyncData = async () => {
+    try {
+      const [runs, sts, cfgs] = await Promise.all([
+        api.fetchSyncRuns().catch(() => [] as ScrapingSyncRun[]),
+        api.fetchScrapingStatus().catch(() => [] as ScrapingStatus[]),
+        api.fetchSyncConfigs().catch(() => [] as SyncConfig[]),
+      ]);
+      setSyncRuns(runs);
+      setSyncStatus(sts);
+      setSyncConfigs(cfgs);
+    } catch (e) {
+      console.warn('[admin] chargement sync center échoué:', e);
+    }
+  };
 
   const refreshSecurityData = async () => {
     try {
@@ -92,6 +113,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
       // Chargement des données de sécurité (alertes + utilisateurs suspendus).
       refreshSecurityData();
+      // Chargement des données du Sync Center (scraping).
+      refreshSyncData();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,6 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              { id: 'promo', label: 'Codes Coupons', icon: <Icons.Tag /> },
              { id: 'subs', label: 'Abonnements', icon: <Icons.Lightning /> },
              { id: 'audit', label: 'Audit Log', icon: <Icons.Heart /> },
+             { id: 'sync', label: 'Sync Center', icon: <Icons.RefreshCw /> },
              { id: 'security', label: 'Sécurité', icon: <Icons.Shield />, badge: unresolvedSecurityCount },
            ].map(tab => (
              <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setMobileNavOpen(false); }} title={sidebarCollapsed ? tab.label : undefined} className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-4 sm:px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all min-h-[44px] ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
@@ -537,6 +561,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
            )}
            
+           {activeTab === 'sync' && (
+             <AdminSyncCenter
+               runs={syncRuns}
+               status={syncStatus}
+               configs={syncConfigs}
+               onDryRun={async (adapter, csv) => {
+                 const res = await api.scrapingDryRun(adapter, csv);
+                 onAddLog('SYNC_DRY_RUN', `Dry-run adaptateur ${adapter} (run ${res.runId.slice(0, 8)})`, 'info');
+                 await refreshSyncData();
+                 return res;
+               }}
+               onApprove={async (runId) => {
+                 await api.approveSyncRun(runId);
+                 onAddLog('SYNC_APPROVE', `Run ${runId.slice(0, 8)} approuvé et publié`, 'success');
+                 await refreshSyncData();
+               }}
+               onReject={async (runId) => {
+                 await api.rejectSyncRun(runId);
+                 onAddLog('SYNC_REJECT', `Run ${runId.slice(0, 8)} rejeté`, 'warning');
+                 await refreshSyncData();
+               }}
+               onImportCsv={async (adapter, csv) => {
+                 const res = await api.importCsv(adapter, csv);
+                 onAddLog('SYNC_IMPORT_CSV', `Import CSV adaptateur ${adapter} (run ${res.runId.slice(0, 8)})`, 'info');
+                 await refreshSyncData();
+                 return res;
+               }}
+               onUpdateConfig={async (adapter, data) => {
+                 await api.updateSyncConfig(adapter, data);
+                 onAddLog('SYNC_CONFIG_UPDATE', `Config adaptateur ${adapter} mise à jour`, 'info');
+                 await refreshSyncData();
+               }}
+             />
+           )}
+
            {activeTab === 'security' && (
              <AdminSecurityModule
                alerts={securityAlerts}

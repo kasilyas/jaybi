@@ -153,6 +153,8 @@ model Product {
   image            String    @default("")
   unit             Unit      @default(unit)
   weight           Float     @default(0)
+  // EAN-13 / barcode — utilisé pour le matching exact lors du scraping
+  ean              String?   @unique
   isNational       Boolean   @default(false)
   isDeleted        Boolean   @default(false)
   isActive         Boolean   @default(true)
@@ -184,6 +186,7 @@ model PriceEntry {
   lastUpdated        DateTime @default(now())
   available          Boolean  @default(true)
   product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  history            PriceHistory[]
 
   @@index([productId])
   @@index([storeId])
@@ -355,4 +358,66 @@ model SecurityAlert {
   @@index([userId])
   @@index([resolved])
   @@map("security_alerts")
+}
+
+// Historique des prix — chaque changement de prix est archivé.
+// Permet de tracer l'évolution des prix dans le temps.
+model PriceHistory {
+  id           String   @id @default(cuid())
+  priceEntryId String
+  priceEntry   PriceEntry @relation(fields: [priceEntryId], references: [id], onDelete: Cascade)
+  price        Float
+  originalPrice Float?
+  available    Boolean
+  recordedAt   DateTime @default(now())
+
+  @@index([priceEntryId])
+  @@index([recordedAt])
+  @@map("price_history")
+}
+
+// Exécution d'un sync (scraping ou import CSV).
+// Règle d'or : les adapters ne JAMAIS écrivent directement dans les tables métier.
+// Tout passe par SyncRun → staging → approval → publish atomique.
+model SyncRun {
+  id              String    @id @default(cuid())
+  adapter         String    // "marjane", "carrefour", "bim", "aswak", "csv_import", "api_partner"
+  status          String    @default("pending") // pending, running, dry_run, approved, rejected, completed, failed
+  mode            String    @default("manual")  // "auto" | "manual" | "dry_run"
+  triggeredBy     String    // email admin ou "scheduler"
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  productsFound   Int       @default(0)
+  productsNew     Int       @default(0)
+  pricesUpdated   Int       @default(0)
+  promotionsFound Int       @default(0)
+  errors          Json      @default("[]") // [{ message, url, timestamp }]
+  // Staging : les changements détectés, en attente d'approval
+  changes         Json?     // SyncChanges (preview pour dry-run / approval)
+  createdAt       DateTime  @default(now())
+
+  @@index([adapter, status])
+  @@index([createdAt])
+  @@map("sync_runs")
+}
+
+// Configuration d'un adaptateur — permet de désactiver une source
+// et de privilégier API / flux partenaire / import quand disponibles.
+model SyncConfig {
+  id            String    @id @default(cuid())
+  adapter       String    @unique // "marjane", "carrefour", "bim", "aswak", "csv_import"
+  enabled       Boolean   @default(true)
+  // Type de source : "scraper" (HTML), "api" (API partenaire), "csv" (import manuel)
+  sourceType    String    @default("scraper") // scraper, api, csv
+  sourceUrl     String?   // URL de base ou endpoint API
+  cronSchedule  String    @default("0 6 * * *")  // quotidien 6h
+  lastRunAt     DateTime?
+  lastStatus    String?   // dernier status
+  maxPages      Int       @default(50)
+  rateLimitMs   Int       @default(2000)  // 2s entre requêtes
+  // Respect éthique : robots.txt seul ne suffit pas, l'admin peut désactiver
+  respectRobotsTxt Boolean @default(true)
+  notes         String?   // notes admin (ex: "API partenaire préférée")
+
+  @@map("sync_configs")
 }

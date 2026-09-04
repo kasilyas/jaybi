@@ -200,6 +200,17 @@ async function main() {
     },
   });
 
+  // Sync configs par défaut
+  const adapters = ['marjane', 'carrefour', 'bim', 'aswak', 'csv_import'];
+  for (const adapter of adapters) {
+    await prisma.syncConfig.upsert({
+      where: { adapter },
+      update: {},
+      create: { adapter, enabled: true, sourceType: adapter === 'csv_import' ? 'csv' : 'scraper' },
+    });
+  }
+  console.log('✅ Sync configs seeded.');
+
   console.log('✅ Seed complete.');
 }
 

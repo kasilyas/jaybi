@@ -229,3 +229,56 @@ export interface SecurityAlert {
   createdAt: string;
   user?: { name: string; email: string } | null;
 }
+
+// --- SYNC CENTER (scraping v0.3) ---
+
+export interface SyncChanges {
+  newProducts: { normalized: any }[];
+  priceChanges: any[];
+  promotions: any[];
+  unavailability: any[];
+  matchedCount: number;
+  unmatchedCount: number;
+}
+
+export interface ScrapingSyncRun {
+  id: string;
+  adapter: string;
+  status: string;
+  mode: string;
+  triggeredBy: string;
+  startedAt: string;
+  endedAt: string | null;
+  productsFound: number;
+  productsNew: number;
+  pricesUpdated: number;
+  promotionsFound: number;
+  errors: any[];
+  changes: SyncChanges | null;
+  createdAt: string;
+}
+
+export interface SyncConfig {
+  id: string;
+  adapter: string;
+  enabled: boolean;
+  sourceType: string;
+  sourceUrl: string | null;
+  cronSchedule: string;
+  lastRunAt: string | null;
+  lastStatus: string | null;
+  maxPages: number;
+  rateLimitMs: number;
+  respectRobotsTxt: boolean;
+  notes: string | null;
+}
+
+export interface ScrapingStatus {
+  adapter: string;
+  enabled: boolean;
+  sourceType: string;
+  lastStatus: string | null;
+  lastRunAt: string | null;
+  lastProductsFound: number;
+  cronSchedule: string;
+}

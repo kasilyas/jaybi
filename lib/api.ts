@@ -5,7 +5,7 @@
  * Si le backend n'est pas joignable (ex: dev sans Docker), on retombe sur mockData.
  * Le JWT est stocké dans localStorage et envoyé en header Authorization.
  */
-import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert } from '../types';
+import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges } from '../types';
 
 const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:4000/api';
 const TOKEN_KEY = 'jaybi_jwt';
@@ -299,4 +299,57 @@ export async function fetchSuspendedUsers(): Promise<any[]> {
 
 export async function unsuspendUser(id: string): Promise<any> {
   return apiFetch<any>(`/security/users/${id}/unsuspend`, { method: 'POST' });
+}
+
+// --- SCRAPING / SYNC CENTER ---
+
+/** Historique des syncs (SyncRun[]). */
+export async function fetchSyncRuns(): Promise<ScrapingSyncRun[]> {
+  return apiFetch<ScrapingSyncRun[]>('/scraping/runs');
+}
+
+/** Détail d'un run. */
+export async function fetchSyncRun(id: string): Promise<ScrapingSyncRun> {
+  return apiFetch<ScrapingSyncRun>(`/scraping/runs/${id}`);
+}
+
+/** Statut live par adaptateur. */
+export async function fetchScrapingStatus(): Promise<ScrapingStatus[]> {
+  return apiFetch<ScrapingStatus[]>('/scraping/status');
+}
+
+/** Toutes les configs d'adaptateurs. */
+export async function fetchSyncConfigs(): Promise<SyncConfig[]> {
+  return apiFetch<SyncConfig[]>('/scraping/config');
+}
+
+/** Modifie la config d'un adaptateur. */
+export async function updateSyncConfig(adapter: string, data: Partial<SyncConfig>): Promise<SyncConfig> {
+  return apiFetch<SyncConfig>(`/scraping/config/${adapter}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Dry-run : simulation d'import sans publier. */
+export async function scrapingDryRun(adapter: string, csv?: string, products?: any[]): Promise<{ runId: string; changes: SyncChanges }> {
+  return apiFetch<{ runId: string; changes: SyncChanges }>('/scraping/dry-run', {
+    method: 'POST',
+    body: JSON.stringify({ adapter, csv, products }),
+  });
+}
+
+/** Publie (approuve) un run dry-run. */
+export async function approveSyncRun(runId: string): Promise<void> {
+  return apiFetch<void>(`/scraping/${runId}/approve`, { method: 'POST' });
+}
+
+/** Rejette un run dry-run. */
+export async function rejectSyncRun(runId: string): Promise<void> {
+  return apiFetch<void>(`/scraping/${runId}/reject`, { method: 'POST' });
+}
+
+/** Import CSV direct (crée un run + changes). */
+export async function importCsv(adapter: string, csv: string): Promise<{ runId: string; changes: SyncChanges }> {
+  return apiFetch<{ runId: string; changes: SyncChanges }>('/scraping/import', {
+    method: 'POST',
+    body: JSON.stringify({ adapter, csv }),
+  });
 }

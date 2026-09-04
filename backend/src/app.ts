@@ -16,6 +16,7 @@ import { auditRouter } from './routes/audit.routes.js';
 import { configRouter } from './routes/config.routes.js';
 import { suggestionsRouter } from './routes/suggestions.routes.js';
 import { securityRouter } from './routes/security.routes.js';
+import { scrapingRouter } from './routes/scraping.routes.js';
 
 // Rate limiter global : 100 req / 15 min par IP (désactivé en test)
 const globalLimiter = rateLimit({
@@ -65,6 +66,7 @@ export function createApp() {
   app.use('/api/config', configRouter);
   app.use('/api/suggestions', suggestionsRouter);
   app.use('/api/security', securityRouter);
+  app.use('/api/scraping', scrapingRouter);
 
   // 404
   app.use((_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
