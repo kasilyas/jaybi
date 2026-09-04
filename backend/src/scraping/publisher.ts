@@ -12,7 +12,7 @@ import { addAuditLog } from '../lib/audit.js';
 
 const BATCH_SIZE = 50;
 
-export async function publishChanges(
+export async function publishChangesDirect(
   changes: SyncChanges,
   adminEmail: string,
   adapter: string,
@@ -85,9 +85,9 @@ export async function publishChanges(
           name: n.name,
           category: n.category ?? 'Autre',
           image: n.image ?? '',
-          unit: n.unit,
-          weight: n.weight ?? 0,
-          ean: n.ean,
+          unit: n.unit ?? 'unit',
+          weight: (n.weight != null && !isNaN(n.weight)) ? n.weight : 0,
+          ean: n.ean || undefined,
           isActive: true,
         };
         if (brandId) productData.brandId = brandId;
@@ -198,3 +198,32 @@ export async function publishChanges(
 
   return { productsNew, pricesUpdated };
 }
+
+/**
+ * Crée un SyncRun en base (status: dry_run).
+ */
+export async function createSyncRun(
+  adapter: string,
+  productsFound: number,
+  changes: SyncChanges,
+): Promise<string> {
+  const run = await prisma.syncRun.create({
+    data: {
+      adapter,
+      status: 'dry_run',
+      mode: 'full_scrape',
+      triggeredBy: 'script@jaybi',
+      endedAt: new Date(),
+      productsFound,
+      productsNew: changes.newProducts.length,
+      pricesUpdated: changes.priceChanges.length,
+      promotionsFound: changes.promotions.length,
+      errors: [],
+      changes: changes as any,
+    },
+  });
+  return run.id;
+}
+
+// Alias pour compatibilité
+export const publishChanges = publishChangesDirect;
