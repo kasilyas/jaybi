@@ -1,18 +1,21 @@
 
 import React, { useState, useMemo } from 'react';
-import { ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges } from '../types';
+import { ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges, MatchReview } from '../types';
 import { Icons } from '../constants';
 
 interface AdminSyncCenterProps {
   runs: ScrapingSyncRun[];
   status: ScrapingStatus[];
   configs: SyncConfig[];
-  onDryRun: (adapter: string, csv?: string) => Promise<{ runId: string; changes: SyncChanges }>;
+  onDryRun: (adapter: string, csv?: string) => Promise<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }>;
   onQueueRun: (adapter: string) => Promise<void>;
   onApprove: (runId: string) => Promise<void>;
   onReject: (runId: string) => Promise<void>;
-  onImportCsv: (adapter: string, csv: string) => Promise<{ runId: string; changes: SyncChanges }>;
+  onImportCsv: (adapter: string, csv: string) => Promise<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }>;
   onUpdateConfig: (adapter: string, data: any) => Promise<void>;
+  onFetchReviews: (runId: string) => Promise<MatchReview[]>;
+  onResolveReview: (reviewId: string, decision: 'accept' | 'reject') => Promise<MatchReview>;
+  onResolveReviews: (runId: string, resolutions: { reviewId: string; decision: 'accept' | 'reject' }[]) => Promise<{ decided: number; skipped: number; pendingReviews: number }>;
 }
 
 const statusBadgeStyles: Record<string, { bg: string; text: string; border: string; label: string }> = {
@@ -41,10 +44,13 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
   onReject,
   onImportCsv,
   onUpdateConfig,
+  onFetchReviews,
+  onResolveReview,
+  onResolveReviews,
 }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ runId: string; changes: SyncChanges; adapter: string } | null>(null);
+  const [preview, setPreview] = useState<{ runId: string; changes: SyncChanges; adapter: string; reviews: MatchReview[] } | null>(null);
   const [configModal, setConfigModal] = useState<SyncConfig | null>(null);
   const [importModal, setImportModal] = useState<SyncConfig | null>(null);
   const [csvText, setCsvText] = useState('');
@@ -85,18 +91,56 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
 
   const handleDryRun = async (adapter: string, csv?: string) => {
     const res = await runOp(() => onDryRun(adapter, csv), 'Erreur dry-run');
-    if (res) setPreview({ runId: res.runId, changes: res.changes, adapter });
+    if (res) setPreview({ runId: res.runId, changes: res.changes, adapter, reviews: res.reviews ?? [] });
   };
 
   const handleQueueRun = async (adapter: string) => {
     await runOp(() => onQueueRun(adapter), 'Erreur de mise en file');
   };
 
+  const pendingReviews = preview ? preview.reviews.filter(r => r.status === 'pending').length : 0;
+  const legacyReviewBlocked = !!preview && !preview.reviews.length && !!preview.changes.reviewRequired?.length;
+
   const handleApprove = async () => {
     if (!preview) return;
-    if (preview.changes.reviewRequired?.length) { setError('Des rapprochements nécessitent une revue. Corrigez la source puis relancez l’import.'); return; }
+    if (pendingReviews > 0) { setError(`${pendingReviews} rapprochement(s) en attente de décision.`); return; }
+    if (legacyReviewBlocked) { setError('Rapprochements historiques sans file de revue : rejetez ce run et relancez l’import.'); return; }
     const ok = await runOp(() => onApprove(preview.runId), 'Erreur approbation');
     if (ok !== null) setPreview(null);
+  };
+
+  const handleViewRun = async (run: ScrapingSyncRun) => {
+    const reviews = await runOp(() => onFetchReviews(run.id), 'Erreur chargement des revues');
+    if (reviews === null) return;
+    setPreview({ runId: run.id, changes: run.changes as SyncChanges, adapter: run.adapter, reviews });
+  };
+
+  const handleResolve = async (reviewId: string, decision: 'accept' | 'reject') => {
+    if (!preview) return;
+    const updated = await runOp(() => onResolveReview(reviewId, decision), 'Erreur décision de revue');
+    if (updated) {
+      setPreview({ ...preview, reviews: preview.reviews.map(r => (r.id === reviewId ? updated : r)) });
+    }
+  };
+
+  const handleResolveAll = async (decision: 'accept' | 'reject') => {
+    if (!preview) return;
+    const resolutions = preview.reviews
+      .filter(r => r.status === 'pending')
+      .map(r => ({ reviewId: r.id, decision }));
+    if (!resolutions.length) return;
+    const result = await runOp(() => onResolveReviews(preview.runId, resolutions), 'Erreur décisions de revue');
+    if (result) {
+      const resolvedIds = new Set(resolutions.map(r => r.reviewId));
+      setPreview({
+        ...preview,
+        reviews: preview.reviews.map(r =>
+          resolvedIds.has(r.id) && r.status === 'pending'
+            ? { ...r, status: decision === 'accept' ? 'accepted' : 'rejected' }
+            : r
+        ),
+      });
+    }
   };
 
   const handleReject = async () => {
@@ -109,7 +153,7 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
     if (!importModal || !csvText.trim()) return;
     const res = await runOp(() => onImportCsv(importModal.adapter, csvText), 'Erreur import CSV');
     if (res) {
-      setPreview({ runId: res.runId, changes: res.changes, adapter: importModal.adapter });
+      setPreview({ runId: res.runId, changes: res.changes, adapter: importModal.adapter, reviews: res.reviews ?? [] });
       setImportModal(null);
       setCsvText('');
     }
@@ -271,7 +315,7 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={handleApprove}
-                disabled={busy}
+                disabled={busy || pendingReviews > 0 || legacyReviewBlocked}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-40 shadow-lg"
               >
                 <Icons.Check /> Tout approuver
@@ -341,13 +385,69 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
             </div>
           )}
 
-          {!!preview.changes.reviewRequired?.length && <section className="p-6 bg-amber-50 border border-amber-200 rounded-2xl">
-            <h4 className="font-bold">Rapprochements à vérifier — publication bloquée</h4>
-            <p className="text-sm">Corrigez les identifiants ou formats dans la source puis relancez l’import. Vous pouvez rejeter ce run.</p>
-            <ul>{preview.changes.reviewRequired.map((item, i) => <li key={i} className="py-3 border-b border-amber-200">
-              <strong>{item.normalized.name}</strong> → {item.candidate.name} ({Math.round(item.confidence * 100)} %)<br />{item.candidate.reason}
-            </li>)}</ul>
-          </section>}
+          {/* Revue des rapprochements incertains — persistée côté serveur */}
+          {!!preview.changes.reviewRequired?.length && (
+            <div className="bg-amber-50 rounded-[2.5rem] border border-amber-200 overflow-hidden">
+              <div className="px-8 py-6 border-b border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h5 className="text-sm font-black text-amber-800 uppercase tracking-tighter">Rapprochements à vérifier</h5>
+                  <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest mt-1">
+                    {pendingReviews > 0 ? `${pendingReviews} en attente — publication bloquée` : 'Tous tranchés — approbation possible'}
+                  </p>
+                </div>
+                {pendingReviews > 0 && preview.reviews.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleResolveAll('accept')} disabled={busy} className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-widest hover:bg-emerald-200 transition-all disabled:opacity-40">Tout accepter</button>
+                    <button onClick={() => handleResolveAll('reject')} disabled={busy} className="px-4 py-2 rounded-xl bg-rose-100 text-rose-600 text-[8px] font-black uppercase tracking-widest hover:bg-rose-200 transition-all disabled:opacity-40">Tout rejeter</button>
+                  </div>
+                )}
+              </div>
+              {preview.reviews.length === 0 ? (
+                <p className="px-8 py-6 text-xs font-bold text-amber-700">Ces rapprochements datent d'avant la file de revue persistée. Rejetez ce run et relancez l'import pour obtenir des décisions traçables.</p>
+              ) : (
+                <ul className="divide-y divide-amber-200">
+                  {preview.changes.reviewRequired.map((item, i) => {
+                    const review = preview.reviews[i];
+                    const decided = review && review.status !== 'pending';
+                    return (
+                      <li key={review?.id ?? i} className="px-8 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900">
+                            {item.normalized.name} <span className="text-amber-600">→</span> {item.candidate.name}
+                            <span className="ml-2 text-[9px] font-black text-slate-400 uppercase">{Math.round(item.confidence * 100)} %</span>
+                          </p>
+                          <p className="text-[10px] font-bold text-amber-700 mt-1">{item.candidate.reason}</p>
+                          {decided && (
+                            <p className="text-[9px] font-black uppercase tracking-widest mt-1 text-slate-400">
+                              {review.status === 'accepted' ? 'Accepté → mise à jour du prix' : 'Rejeté → nouveau produit'} par {review.reviewedBy ?? '—'}
+                            </p>
+                          )}
+                        </div>
+                        {!decided && review && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleResolve(review.id, 'accept')}
+                              disabled={busy}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-40"
+                            >
+                              Même produit
+                            </button>
+                            <button
+                              onClick={() => handleResolve(review.id, 'reject')}
+                              disabled={busy}
+                              className="px-4 py-2 rounded-xl bg-white text-rose-600 border border-rose-200 text-[8px] font-black uppercase tracking-widest hover:bg-rose-50 transition-all disabled:opacity-40"
+                            >
+                              Produit distinct
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
           {/* Table des nouveaux produits */}
           {preview.changes.newProducts.length > 0 && (
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
@@ -429,7 +529,7 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
                           {run.status === 'dry_run' && (
                             <>
                               <button
-                                onClick={() => { setPreview({ runId: run.id, changes: run.changes as SyncChanges, adapter: run.adapter }); }}
+                                onClick={() => handleViewRun(run)}
                                 className="px-3 py-2 rounded-xl bg-slate-50 text-slate-600 text-[8px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all"
                               >
                                 Voir

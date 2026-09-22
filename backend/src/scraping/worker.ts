@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { adapterRegistry } from './adapterRegistry.js';
 import { normalizeAll } from './normalizer.js';
 import { detectChanges } from './changeDetector.js';
+import { stageMatchReviews } from './matchReview.js';
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -45,6 +46,7 @@ export async function processNextRun(): Promise<boolean> {
         changes: changes as object,
       },
     });
+    await stageMatchReviews(candidate.id, changes.reviewRequired ?? []);
     await prisma.syncConfig.updateMany({
       where: { adapter: candidate.adapter },
       data: { lastRunAt: endedAt, lastStatus: 'dry_run' },

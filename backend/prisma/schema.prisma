@@ -407,11 +407,34 @@ model SyncRun {
   errors          Json      @default("[]") // [{ message, url, timestamp }]
   // Staging : les changements détectés, en attente d'approval
   changes         Json?     // SyncChanges (preview pour dry-run / approval)
+  reviews         MatchReview[]
   createdAt       DateTime  @default(now())
 
   @@index([adapter, status])
   @@index([createdAt])
   @@map("sync_runs")
+}
+
+// Rapprochement incertain soumis à une décision humaine.
+// Un candidat pending bloque la publication du run ; accepté il devient
+// un changement de prix, rejeté un nouveau produit.
+model MatchReview {
+  id            String   @id @default(cuid())
+  syncRunId     String
+  syncRun       SyncRun  @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  candidateId   String   // Product.id proposé par le matcher
+  candidateName String
+  reason        String
+  confidence    Float
+  normalized    Json     // NormalizedProduct scrapé
+  status        String   @default("pending") // pending | accepted | rejected
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([syncRunId, status])
+  @@index([status])
+  @@map("match_reviews")
 }
 
 // Configuration d'un adaptateur — permet de désactiver une source

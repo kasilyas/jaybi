@@ -595,6 +595,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  onAddLog('SYNC_CONFIG_UPDATE', `Config adaptateur ${adapter} mise à jour`, 'info');
                  await refreshSyncData();
                }}
+               onFetchReviews={async (runId) => api.fetchRunReviews(runId)}
+               onResolveReview={async (reviewId, decision) => {
+                 const review = await api.resolveMatchReview(reviewId, decision);
+                 onAddLog('MATCH_REVIEW', `Rapprochement ${reviewId.slice(0, 8)} ${decision === 'accept' ? 'accepté' : 'rejeté'}`, 'info');
+                 return review;
+               }}
+               onResolveReviews={async (runId, resolutions) => {
+                 const result = await api.resolveRunReviews(runId, resolutions);
+                 onAddLog('MATCH_REVIEW_BULK', `Revue run ${runId.slice(0, 8)} : ${result.decided} décidés`, 'info');
+                 await refreshSyncData();
+                 return result;
+               }}
              />
            )}
 

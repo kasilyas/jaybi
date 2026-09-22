@@ -42,6 +42,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 
 - Le rapprochement refuse les EAN contradictoires, marques incompatibles et formats/poids incompatibles ; `1 kg` et `1000 g` sont reconnus comme équivalents.
 - Les rapprochements flous deviennent des candidats de revue et ne sont plus publiés automatiquement. La recherche parcourt les candidats par pages au lieu de s'arrêter à 500.
+- Revue des rapprochements persistée et actionnable : chaque candidat est une ligne `match_reviews` (statut, décideur, date). L'admin tranche via `POST /api/scraping/reviews/:id` ou en masse `POST /api/scraping/runs/:runId/reviews` ; l'approbation reste bloquée (409 + compteur) tant qu'un candidat est en attente. Accepté → prix appliqué au produit existant ; rejeté → nouveau produit. Le Sync Center affiche la file avec décisions par item et en masse. Runs historiques sans revues persistées : rejet et ré-import (décisions non traçables sinon).
 - Une synchronisation vide ne peut plus être approuvée ou publiée comme réussie.
 - Les sauvegardes admin n'affichent plus un succès local après un échec API ; les listes acceptent aussi une réponse serveur vide sans réinjecter les données de démonstration.
 - La création de membres depuis l'administration est de nouveau opérationnelle via une route serveur réservée aux administrateurs, avec validation, unicité de l'email et audit atomique.
@@ -74,8 +75,8 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 | Tests frontend | 81/81 |
 | Build frontend | réussi ; bundle principal ramené à 468 kB |
 | TypeScript/build backend | réussi |
-| Tests backend unitaires | 183/183 |
-| Tests PostgreSQL | 101/101, dont création admin, adresses, concurrence promo et idempotence |
+| Tests backend unitaires | 191/191 |
+| Tests PostgreSQL | 108/108, dont création admin, adresses, concurrence promo, idempotence et revue des rapprochements |
 | Intégration ciblée collecte | 21/21 : file, autorisations, import, validation, publication et filtrage des URL source |
 | Audits dépendances de production | 0 vulnérabilité, frontend et backend |
 | Build Docker | 3/3 images construites |
@@ -84,7 +85,6 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 
 ## Partiellement réalisé
 
-- La file de revue des rapprochements est visible et bloque la publication, mais il reste à ajouter une action admin d'acceptation/rejet par candidat avec persistance.
 - Le profil persiste le nom, les adresses et permet la désactivation. La vérification d'email et un vrai changement de mot de passe restent à développer.
 - Le stockage OTP est adapté à une instance unique. Redis ou une table dédiée est nécessaire avant un déploiement multi-instance.
 - Le traitement de collecte est repris par un worker. La publication reste volontairement initiée dans le cycle HTTP après validation humaine ; une reprise/rollback de publication reste à ajouter.
@@ -93,7 +93,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 
 ## Restant avant mise en production publique
 
-1. Finaliser la revue manuelle persistée des rapprochements et la reprise/rollback du publisher.
+1. Reprise/rollback du publisher après coupure (la revue des rapprochements est terminée depuis le 22/09).
 2. Valider les cinq sources de scraping en conditions réelles : couverture, pagination, timeouts, retries, robots.txt, preuves source et alertes de santé.
 3. Généraliser les schémas d'entrée, limites de pagination, journaux d'audit et identifiants de requête.
 4. Ajouter le vrai flux de mot de passe, la vérification de changement d'email et la gestion complète des adresses.

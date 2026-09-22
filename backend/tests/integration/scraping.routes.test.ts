@@ -31,8 +31,12 @@ describe.runIf(dbAvailable)('Scraping routes — intégration (dry-run, approve,
   });
 
   afterAll(async () => {
-    // Nettoyage des sync runs de test
+    // Nettoyage des sync runs de test (les match_reviews suivent en cascade)
     await prisma.syncRun.deleteMany({ where: { triggeredBy: 'admin@qayess.io' } }).catch(() => null);
+    // Nettoyage des produits/marques de test de la revue
+    await prisma.priceEntry.deleteMany({ where: { product: { name: { contains: 'Testrevue' } } } }).catch(() => null);
+    await prisma.product.deleteMany({ where: { name: { contains: 'Testrevue' } } }).catch(() => null);
+    await prisma.brand.deleteMany({ where: { name: 'Testrevue' } }).catch(() => null);
     await prisma.$disconnect();
   });
 
@@ -260,5 +264,126 @@ describe.runIf(dbAvailable)('Scraping routes — intégration (dry-run, approve,
       .get('/api/scraping/runs/nonexistent-id')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(r.status).toBe(404);
+  });
+
+  // --- Revue persistée des rapprochements ---
+
+  const REVIEW_CSV = `name,brand,category,unit,weight,ean,price,originalPrice,promotionLabel,available,city,storeName
+Thon Testrevue 800 g,Testrevue,Conserve,g,800,,12.9,,,true,Casablanca,Marjane`;
+
+  const seedReviewTarget = async () => {
+    const brand = await prisma.brand.upsert({ where: { name: 'Testrevue' }, update: {}, create: { name: 'Testrevue' } });
+    await prisma.store.upsert({ where: { name: 'Marjane' }, update: {}, create: { name: 'Marjane' } });
+    return prisma.product.create({
+      data: { name: 'Thon Testrevue 800g', brandId: brand.id, category: 'Conserve', unit: 'g', weight: 800, isActive: true },
+    });
+  };
+
+  it('un rapprochement incertain bloque l’approbation, puis accepté publie le prix sur le produit existant', async () => {
+    const target = await seedReviewTarget();
+    const before = await prisma.product.count({ where: { name: { contains: 'Testrevue' } } });
+
+    const dry = await request(app)
+      .post('/api/scraping/dry-run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ adapter: 'csv_import', csv: REVIEW_CSV });
+    expect(dry.status).toBe(200);
+    expect(dry.body.changes.reviewRequired?.length).toBe(1);
+    expect(dry.body.reviews).toHaveLength(1);
+    expect(dry.body.reviews[0].status).toBe('pending');
+    const runId = dry.body.runId;
+    const reviewId = dry.body.reviews[0].id;
+
+    // Bloqué tant que la revue est pending
+    const blocked = await request(app).post(`/api/scraping/${runId}/approve`).set('Authorization', `Bearer ${adminToken}`);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error).toBe('MATCH_REVIEW_REQUIRED');
+    expect(blocked.body.pendingReviews).toBe(1);
+
+    // La file de revue est lisible
+    const list = await request(app).get(`/api/scraping/runs/${runId}/reviews`).set('Authorization', `Bearer ${adminToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body[0].candidateId).toBe(target.id);
+
+    // Décision : même produit
+    const decide = await request(app).post(`/api/scraping/reviews/${reviewId}`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'accept' });
+    expect(decide.status).toBe(200);
+    expect(decide.body.status).toBe('accepted');
+    expect(decide.body.reviewedBy).toBe('admin@qayess.io');
+
+    // Double décision refusée
+    const again = await request(app).post(`/api/scraping/reviews/${reviewId}`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'reject' });
+    expect(again.status).toBe(409);
+
+    // Approbation : le prix est appliqué au produit existant, aucun doublon créé
+    const approve = await request(app).post(`/api/scraping/${runId}/approve`).set('Authorization', `Bearer ${adminToken}`);
+    expect(approve.status).toBe(200);
+    expect(approve.body.pricesUpdated).toBe(1);
+
+    const store = await prisma.store.findFirst({ where: { name: 'Marjane' } });
+    const entry = await prisma.priceEntry.findFirst({ where: { productId: target.id, storeId: store!.id, city: 'Casablanca' } });
+    expect(entry?.price).toBe(12.9);
+    expect(await prisma.product.count({ where: { name: { contains: 'Testrevue' } } })).toBe(before);
+  });
+
+  it('un rapprochement rejeté publie un nouveau produit distinct', async () => {
+    await seedReviewTarget();
+    const before = await prisma.product.count({ where: { name: { contains: 'Testrevue' } } });
+
+    const dry = await request(app)
+      .post('/api/scraping/dry-run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ adapter: 'csv_import', csv: REVIEW_CSV });
+    expect(dry.body.reviews).toHaveLength(1);
+    const runId = dry.body.runId;
+
+    const decide = await request(app)
+      .post(`/api/scraping/reviews/${dry.body.reviews[0].id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ decision: 'reject' });
+    expect(decide.status).toBe(200);
+    expect(decide.body.status).toBe('rejected');
+
+    const approve = await request(app).post(`/api/scraping/${runId}/approve`).set('Authorization', `Bearer ${adminToken}`);
+    expect(approve.status).toBe(200);
+    expect(approve.body.productsNew).toBe(1);
+    // Un produit supplémentaire existe désormais sous le nom normalisé du CSV
+    expect(await prisma.product.count({ where: { name: { contains: 'Testrevue' } } })).toBe(before + 1);
+  });
+
+  it('la revue en masse tranche tous les candidats d’un run', async () => {
+    const brand = await prisma.brand.findFirst({ where: { name: 'Testrevue' } });
+    await prisma.product.create({ data: { name: 'Fromage Testrevue 200g', brandId: brand!.id, category: 'Frais', unit: 'g', weight: 200, isActive: true } });
+    await prisma.product.create({ data: { name: 'Beurre Testrevue 250g', brandId: brand!.id, category: 'Frais', unit: 'g', weight: 250, isActive: true } });
+
+    const csv = `name,brand,category,unit,weight,ean,price,originalPrice,promotionLabel,available,city,storeName
+Fromage Testrevue 200 g,Testrevue,Frais,g,200,,24.5,,,true,Casablanca,Marjane
+Beurre Testrevue 250 g,Testrevue,Frais,g,250,,31,,,true,Casablanca,Marjane`;
+
+    const dry = await request(app)
+      .post('/api/scraping/dry-run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ adapter: 'csv_import', csv });
+    expect(dry.body.reviews).toHaveLength(2);
+    const runId = dry.body.runId;
+
+    const bulk = await request(app)
+      .post(`/api/scraping/runs/${runId}/reviews`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ resolutions: dry.body.reviews.map((r: any) => ({ reviewId: r.id, decision: 'accept' })) });
+    expect(bulk.status).toBe(200);
+    expect(bulk.body).toMatchObject({ decided: 2, pendingReviews: 0 });
+
+    const approve = await request(app).post(`/api/scraping/${runId}/approve`).set('Authorization', `Bearer ${adminToken}`);
+    expect(approve.status).toBe(200);
+    expect(approve.body.pricesUpdated).toBe(2);
+  });
+
+  it('les décisions de revue exigent un rôle admin', async () => {
+    const r = await request(app)
+      .post('/api/scraping/reviews/whatever')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ decision: 'accept' });
+    expect(r.status).toBe(403);
   });
 });

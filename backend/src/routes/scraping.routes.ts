@@ -6,6 +6,7 @@ import { addAuditLog } from '../lib/audit.js';
 import { normalizeAll } from '../scraping/normalizer.js';
 import { detectChanges } from '../scraping/changeDetector.js';
 import { publishChanges } from '../scraping/publisher.js';
+import { stageMatchReviews, resolveReviewedChanges } from '../scraping/matchReview.js';
 import { parseCsv } from '../scraping/csvImport.js';
 import { adapterRegistry } from '../scraping/adapterRegistry.js';
 import type { SyncChanges } from '../scraping/types.js';
@@ -157,8 +158,9 @@ scrapingRouter.post('/dry-run', async (req, res: Response) => {
       changes: changes as any,
     },
   });
+  const reviews = await stageMatchReviews(run.id, changes.reviewRequired ?? []);
 
-  res.json({ runId: run.id, changes });
+  res.json({ runId: run.id, changes, reviews });
 });
 
 // POST /scraping/run — queue an adapter collection. The worker creates a
@@ -182,8 +184,13 @@ scrapingRouter.post('/:runId/approve', async (req, res: Response) => {
   if (!run) return res.status(404).json({ error: 'NOT_FOUND' });
   if (run.status !== 'dry_run') return res.status(400).json({ error: 'NOT_DRY_RUN' });
 
-  const changes = run.changes as unknown as SyncChanges;
-  if (!changes) return res.status(400).json({ error: 'NO_CHANGES' });
+  const staged = run.changes as unknown as SyncChanges;
+  if (!staged) return res.status(400).json({ error: 'NO_CHANGES' });
+
+  const pendingReviews = await prisma.matchReview.count({ where: { syncRunId: run.id, status: 'pending' } });
+  if (pendingReviews > 0) return res.status(409).json({ error: 'MATCH_REVIEW_REQUIRED', pendingReviews });
+
+  const changes = await resolveReviewedChanges(run.id, staged);
   if (changes.reviewRequired?.length) return res.status(409).json({ error: 'MATCH_REVIEW_REQUIRED' });
   if (!changes.newProducts.length && !changes.priceChanges.length) return res.status(400).json({ error: 'EMPTY_SYNC' });
 
@@ -243,6 +250,87 @@ scrapingRouter.post('/import', async (req, res: Response) => {
       changes: changes as any,
     },
   });
+  const reviews = await stageMatchReviews(run.id, changes.reviewRequired ?? []);
 
-  res.json({ runId: run.id, changes });
+  res.json({ runId: run.id, changes, reviews });
+});
+
+// GET /scraping/runs/:runId/reviews — file de revue des rapprochements
+scrapingRouter.get('/runs/:runId/reviews', async (req, res: Response) => {
+  const run = await prisma.syncRun.findUnique({ where: { id: req.params.runId }, select: { id: true } });
+  if (!run) return res.status(404).json({ error: 'NOT_FOUND' });
+  const reviews = await prisma.matchReview.findMany({
+    where: { syncRunId: run.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(reviews);
+});
+
+const reviewDecisionSchema = z.object({ decision: z.enum(['accept', 'reject']) }).strict();
+const bulkReviewSchema = z.object({
+  resolutions: z.array(z.object({
+    reviewId: z.string().min(1),
+    decision: z.enum(['accept', 'reject']),
+  }).strict()).min(1).max(2000),
+}).strict();
+
+// POST /scraping/reviews/:reviewId — décision humaine sur un rapprochement
+scrapingRouter.post('/reviews/:reviewId', async (req, res: Response) => {
+  const parsed = reviewDecisionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
+
+  const review = await prisma.matchReview.findUnique({ where: { id: req.params.reviewId }, include: { syncRun: { select: { status: true } } } });
+  if (!review) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (review.syncRun.status !== 'dry_run') return res.status(400).json({ error: 'NOT_DRY_RUN' });
+  if (review.status !== 'pending') return res.status(409).json({ error: 'ALREADY_REVIEWED' });
+
+  const updated = await prisma.matchReview.update({
+    where: { id: review.id },
+    data: {
+      status: parsed.data.decision === 'accept' ? 'accepted' : 'rejected',
+      reviewedBy: req.user!.email,
+      reviewedAt: new Date(),
+    },
+  });
+  await addAuditLog({
+    action: 'MATCH_REVIEW_DECISION',
+    user: req.user!.email,
+    userEmail: req.user!.email,
+    details: `Rapprochement ${review.id} ${parsed.data.decision === 'accept' ? 'accepté' : 'rejeté'} (candidat ${review.candidateName})`,
+    type: 'info',
+  });
+  res.json(updated);
+});
+
+// POST /scraping/runs/:runId/reviews — décisions en masse pour un run
+scrapingRouter.post('/runs/:runId/reviews', async (req, res: Response) => {
+  const parsed = bulkReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
+
+  const run = await prisma.syncRun.findUnique({ where: { id: req.params.runId }, select: { id: true, status: true } });
+  if (!run) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (run.status !== 'dry_run') return res.status(400).json({ error: 'NOT_DRY_RUN' });
+
+  let decided = 0;
+  let skipped = 0;
+  for (const { reviewId, decision } of parsed.data.resolutions) {
+    const result = await prisma.matchReview.updateMany({
+      where: { id: reviewId, syncRunId: run.id, status: 'pending' },
+      data: {
+        status: decision === 'accept' ? 'accepted' : 'rejected',
+        reviewedBy: req.user!.email,
+        reviewedAt: new Date(),
+      },
+    });
+    if (result.count) decided++; else skipped++;
+  }
+  await addAuditLog({
+    action: 'MATCH_REVIEW_BULK',
+    user: req.user!.email,
+    userEmail: req.user!.email,
+    details: `Revue run ${run.id.slice(0, 8)}: ${decided} décidés, ${skipped} ignorés`,
+    type: 'info',
+  });
+  const pendingReviews = await prisma.matchReview.count({ where: { syncRunId: run.id, status: 'pending' } });
+  res.json({ decided, skipped, pendingReviews });
 });

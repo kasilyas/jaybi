@@ -245,6 +245,20 @@ export interface SyncChanges {
   unmatchedCount: number;
 }
 
+export interface MatchReview {
+  id: string;
+  syncRunId: string;
+  candidateId: string;
+  candidateName: string;
+  reason: string;
+  confidence: number;
+  normalized: { name: string; brand?: string; price?: number; sourceUrl?: string };
+  status: 'pending' | 'accepted' | 'rejected';
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
 export interface ScrapingSyncRun {
   id: string;
   adapter: string;

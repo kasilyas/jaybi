@@ -5,7 +5,7 @@
  * Si le backend n'est pas joignable (ex: dev sans Docker), on retombe sur mockData.
  * Le JWT est stocké dans localStorage et envoyé en header Authorization.
  */
-import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges, Address } from '../types';
+import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges, MatchReview, Address } from '../types';
 
 const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:4000/api';
 const TOKEN_KEY = 'jaybi_jwt';
@@ -374,9 +374,9 @@ export async function updateSyncConfig(adapter: string, data: Partial<SyncConfig
   return apiFetch<SyncConfig>(`/scraping/config/${adapter}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
-/** Dry-run : simulation d'import sans publier. */
-export async function scrapingDryRun(adapter: string, csv?: string, products?: any[]): Promise<{ runId: string; changes: SyncChanges }> {
-  return apiFetch<{ runId: string; changes: SyncChanges }>('/scraping/dry-run', {
+/** Dry-run : simulation d'import sans publier. Retourne aussi les revues de rapprochement à trancher. */
+export async function scrapingDryRun(adapter: string, csv?: string, products?: any[]): Promise<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }> {
+  return apiFetch<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }>('/scraping/dry-run', {
     method: 'POST',
     body: JSON.stringify({ adapter, csv, products }),
   });
@@ -400,10 +400,28 @@ export async function rejectSyncRun(runId: string): Promise<void> {
   return apiFetch<void>(`/scraping/${runId}/reject`, { method: 'POST' });
 }
 
-/** Import CSV direct (crée un run + changes). */
-export async function importCsv(adapter: string, csv: string): Promise<{ runId: string; changes: SyncChanges }> {
-  return apiFetch<{ runId: string; changes: SyncChanges }>('/scraping/import', {
+/** Import CSV direct (crée un run + changes). Retourne aussi les revues à trancher. */
+export async function importCsv(adapter: string, csv: string): Promise<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }> {
+  return apiFetch<{ runId: string; changes: SyncChanges; reviews: MatchReview[] }>('/scraping/import', {
     method: 'POST',
     body: JSON.stringify({ adapter, csv }),
+  });
+}
+
+/** File de revue des rapprochements d'un run. */
+export async function fetchRunReviews(runId: string): Promise<MatchReview[]> {
+  return apiFetch<MatchReview[]>(`/scraping/runs/${runId}/reviews`);
+}
+
+/** Décision humaine sur un rapprochement incertain. */
+export async function resolveMatchReview(reviewId: string, decision: 'accept' | 'reject'): Promise<MatchReview> {
+  return apiFetch<MatchReview>(`/scraping/reviews/${reviewId}`, { method: 'POST', body: JSON.stringify({ decision }) });
+}
+
+/** Décisions en masse sur les rapprochements d'un run. */
+export async function resolveRunReviews(runId: string, resolutions: { reviewId: string; decision: 'accept' | 'reject' }[]): Promise<{ decided: number; skipped: number; pendingReviews: number }> {
+  return apiFetch<{ decided: number; skipped: number; pendingReviews: number }>(`/scraping/runs/${runId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({ resolutions }),
   });
 }

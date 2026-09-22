@@ -95,7 +95,7 @@ Express 4 installé ne traite pas les promesses rejetées ; de nombreuses routes
 `backend/src/scraping/matcher.ts:59-75` — matching par similarité de nom seule : `Farine 1kg` associée à `Farine 5kg`.
 
 - [x] Interdire les rapprochements avec EAN contradictoires et formats/poids/unités incompatibles.
-- [~] Définir des seuils de confiance ; les cas ambigus partent en file de revue manuelle (statut dédié, pas de publication automatique). Publication bloquée ; acceptation/rejet persistant restant.
+- [x] Définir des seuils de confiance ; les cas ambigus partent en file de revue manuelle (statut dédié, pas de publication automatique). Persisté dans `match_reviews` : décision admin par item (`POST /api/scraping/reviews/:id`) ou en masse (`POST /api/scraping/runs/:runId/reviews`), approbation bloquée tant que pending, revue interactive dans le Sync Center (22/09).
 - [x] Lever la limite arbitraire de 500 candidats ou la justifier et l'instrumenter.
 - [x] Fixtures de régression : paires connues de faux matchs (formats, marques proches, multipacks).
 - Clôture : les fixtures de faux matchs ne sont plus fusionnées ; les ambiguïtés apparaissent dans une liste de revue admin.
