@@ -1,3 +1,4 @@
+import { getCartItemPrice, computeSubtotal } from '../lib/cart';
 
 import React from 'react';
 import { Product, CartItem, Language, StoreName, PromoCode, Pack } from '../types';
@@ -5,6 +6,8 @@ import { Icons, STORES, TRANSLATIONS } from '../constants';
 
 interface OrderSummaryModalProps {
   isOpen: boolean;
+  error?: string;
+  pending?: boolean;
   onClose: () => void;
   cart: CartItem[];
   products: Product[];
@@ -16,7 +19,7 @@ interface OrderSummaryModalProps {
 }
 
 export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({ 
-  isOpen, onClose, cart, products, packs, language, onConfirmOrder, onConfirmRoadmap, appliedPromo 
+  isOpen, onClose, cart, products, packs, language, onConfirmOrder, onConfirmRoadmap, appliedPromo, error, pending
 }) => {
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
@@ -28,37 +31,15 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
     const bestPriceEntry = [...product.prices].sort((a, b) => a.price - b.price)[0];
     const store = item.store || bestPriceEntry.store;
     
-    // Calcul du prix spécifique (Pack ou Standard)
-    let unitPrice = product.prices.find(pr => pr.store === store)?.price || bestPriceEntry.price;
-    let packName = undefined;
-
-    if (item.packId) {
-      const pack = packs.find(p => p.id === item.packId);
-      if (pack) {
-        packName = pack.name;
-        if (pack.discountPercent) {
-          unitPrice = unitPrice * (1 - pack.discountPercent / 100);
-        }
-      }
-    }
+    const unitPrice = getCartItemPrice(item, products, packs);
+    const packName = packs.find(p => p.id === item.packId)?.name;
 
     if (!acc[store]) acc[store] = [];
     acc[store].push({ ...item, product, price: unitPrice, packName });
     return acc;
   }, {} as Record<string, any[]>);
 
-  const subtotal = cart.reduce((sum, item) => {
-    const product = products.find(p => p.id === item.productId)!;
-    let price = product.prices.find(pr => pr.store === item.store)?.price || Math.min(...product.prices.map(pr => pr.price));
-    
-    if (item.packId) {
-      const pack = packs.find(p => p.id === item.packId);
-      if (pack && pack.discountPercent) {
-        price = price * (1 - pack.discountPercent / 100);
-      }
-    }
-    return sum + (price * item.quantity);
-  }, 0);
+  const subtotal = computeSubtotal(cart, products, packs);
 
   let discount = 0;
   if (appliedPromo) {
@@ -86,7 +67,7 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
              return (
                <section key={store} className="bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100">
                   <div className="flex items-center gap-3 mb-6">
-                     <img src={STORES[store as StoreName].logo} className="h-6 w-auto object-contain" alt="" />
+                     <img src={STORES[store as StoreName]?.logo} className="h-6 w-auto object-contain" alt="" />
                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-900">{store}</h3>
                   </div>
                   <div className="space-y-3">
@@ -115,6 +96,7 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
         </div>
 
         <footer className="p-5 sm:p-8 bg-slate-50 border-t border-slate-200 shrink-0">
+           {error && <p role="alert" className="text-red-700 mb-4">{error}</p>}
            <div className="space-y-1 mb-6">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
                 <span>Sous-total</span>
@@ -139,14 +121,14 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button 
-                onClick={onConfirmRoadmap}
+                disabled={pending} onClick={onConfirmRoadmap}
                 className="py-5 bg-white border border-slate-200 text-slate-900 font-black rounded-3xl text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex flex-col items-center gap-1"
               >
                  Terminer mes courses
                  <span className="text-[8px] text-slate-400 font-bold lowercase">(Roadmap GPS)</span>
               </button>
               <button 
-                onClick={onConfirmOrder}
+                disabled={pending} onClick={onConfirmOrder}
                 className="py-5 bg-emerald-500 text-white font-black rounded-3xl text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 flex flex-col items-center gap-1"
               >
                  Commander

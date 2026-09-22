@@ -46,7 +46,7 @@ test.describe('Authentication', () => {
       await loginBtn.click();
       await page.waitForTimeout(1000);
 
-      const customerAccount = page.locator(`button:has-text("e2e-customer@test.com"), [data-test-account="e2e-customer@test.com"]`).first();
+      const customerAccount = page.locator(`button:has-text("user@qayess.ma"), [data-test-account="user@qayess.ma"]`).first();
       if (await customerAccount.isVisible({ timeout: 3000 }).catch(() => false)) {
         await customerAccount.click();
         await page.waitForLoadState('networkidle');

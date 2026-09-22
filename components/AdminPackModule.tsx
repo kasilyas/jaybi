@@ -3,11 +3,14 @@ import React, { useState } from 'react';
 import { Pack, Product } from '../types';
 import { Icons, THEME_CONFIG } from '../constants';
 import { AdminModal, DeleteConfirmation } from './AdminShared';
+import { packQuote, packDiscount } from '../lib/pricing';
 
-export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: (p: Pack) => void; onDelete: (id: string) => void }> = ({ packs, products, onSave, onDelete }) => {
+export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: (p: Pack) => Promise<boolean>; onDelete: (id: string) => void }> = ({ packs, products, onSave, onDelete }) => {
   const [editing, setEditing] = useState<Pack | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const emptyPack = (): Pack => ({ 
     id: `PK-${Date.now()}`, 
@@ -17,7 +20,7 @@ export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: 
     image: '📦', 
     theme: 'standard', 
     type: 'bundle', 
-    discountPercent: 10,
+    productDiscounts: {},
     startsAt: new Date().toISOString().slice(0, 16),
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
   });
@@ -43,7 +46,7 @@ export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: 
               <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl">{p.image}</div>
               <div>
                 <p className="text-sm font-black text-slate-900 uppercase">{p.name}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">{p.productIds.length} articles • {p.discountPercent}% OFF</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">{p.productIds.length} articles • Jusqu’à {packQuote(p, products).maxDiscount}%</p>
                 <p className="text-[8px] text-emerald-500 font-bold uppercase mt-1">
                   Du {new Date(p.startsAt || "").toLocaleString()} au {new Date(p.expiresAt || "").toLocaleString()}
                 </p>
@@ -64,7 +67,7 @@ export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: 
               <textarea placeholder="Description" value={editing.description} onChange={e => setEditing({...editing, description: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-6 text-sm h-24" />
               
               <div className="grid grid-cols-2 gap-4">
-                <input type="number" placeholder="Remise %" value={editing.discountPercent} onChange={e => setEditing({...editing, discountPercent: Number(e.target.value)})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl py-4 px-6 font-black text-emerald-600" />
+                <p className="text-sm text-emerald-700">Remises par article. Jusqu’à {packQuote(editing, products).maxDiscount} %.<br />Total : {packQuote(editing, products).total.toFixed(2)} DH ; économie : {packQuote(editing, products).savings.toFixed(2)} DH ({packQuote(editing, products).discount} %).</p>
                 <select value={editing.theme} onChange={e => setEditing({...editing, theme: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-4 font-black uppercase text-[10px]">
                   {Object.keys(THEME_CONFIG).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -103,15 +106,26 @@ export const PackModule: React.FC<{ packs: Pack[]; products: Product[]; onSave: 
                 {filteredProd.map(p => {
                   const selected = editing.productIds.includes(p.id);
                   return (
-                    <button key={p.id} onClick={() => { const ids = selected ? editing.productIds.filter(id=>id!==p.id) : [...editing.productIds, p.id]; setEditing({...editing, productIds: ids}); }} className={`w-full p-3 rounded-xl border flex items-center justify-between text-left transition-all ${selected ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-slate-100'}`}>
+                    <div key={p.id}>
+                    <button type="button" onClick={() => { const ids = selected ? editing.productIds.filter(id=>id!==p.id) : [...editing.productIds, p.id]; setEditing({...editing, productIds: ids, productDiscounts: Object.fromEntries(ids.map(id => [id, packDiscount(editing, id)]))}); }} className={`w-full p-3 rounded-xl border flex items-center justify-between text-left transition-all ${selected ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-slate-100'}`}>
                       <span className="text-[10px] font-bold text-slate-700">{p.name}</span>
                       {selected && <Icons.Check className="text-emerald-500 scale-75" />}
                     </button>
+                    {selected && <label className="block text-xs p-2">Remise pack pour {p.name} (%)
+                      <input aria-label={`Remise ${p.name}`} type="number" min="0" max="100" step="0.01" value={packDiscount(editing, p.id)} onChange={e => setEditing({ ...editing, productDiscounts: { ...Object.fromEntries(editing.productIds.map(id => [id, packDiscount(editing, id)])), [p.id]: Math.min(100, Math.max(0, Number(e.target.value))) } })} className="w-24 ml-2 border rounded p-2" />
+                    </label>}
+                    </div>
                   );
                 })}
               </div>
             </div>
-            <button onClick={() => { onSave(editing); setEditing(null); }} className="md:col-span-2 py-6 bg-slate-900 text-white font-black rounded-2xl text-[11px] uppercase shadow-2xl">Publier le Pack</button>
+            {saveError && <p role="alert" className="text-red-700 md:col-span-2">{saveError}</p>}
+            <button disabled={saving || !editing.name.trim() || !editing.productIds.length || !packQuote(editing, products).available} onClick={async () => {
+              setSaving(true); setSaveError('');
+              try { if (await onSave(editing)) setEditing(null); else setSaveError('Enregistrement refusé. Vos modifications sont conservées.'); }
+              catch { setSaveError('Enregistrement impossible. Réessayez.'); }
+              finally { setSaving(false); }
+            }} className="md:col-span-2 py-6 bg-slate-900 text-white font-black rounded-2xl text-[11px] uppercase shadow-2xl disabled:opacity-50">{saving ? 'Enregistrement…' : 'Publier le Pack'}</button>
           </div>
         )}
       </AdminModal>

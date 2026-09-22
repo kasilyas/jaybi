@@ -1,3 +1,4 @@
+import { getCartItemPrice } from '../lib/cart';
 
 import React, { useState, useMemo } from 'react';
 import { Product, CartItem, StoreName, Language, PromoCode, Pack } from '../types';
@@ -44,21 +45,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       // Fallback si jamais le prix n'est pas trouvé (ne devrait pas arriver si la logique d'ajout est bonne)
       const currentPriceEntry = priceEntry || [...product.prices].sort((a, b) => a.price - b.price)[0];
       
-      let finalPrice = currentPriceEntry.price;
-      let isDiscounted = false;
-      let packName = undefined;
-
-      // Appliquer la remise pack si applicable
-      if (item.packId) {
-        const pack = packs.find(p => p.id === item.packId);
-        if (pack) {
-          packName = pack.name;
-          if (pack.discountPercent) {
-            finalPrice = finalPrice * (1 - pack.discountPercent / 100);
-            isDiscounted = true;
-          }
-        }
-      }
+      const finalPrice = getCartItemPrice(item, products, packs);
+      const isDiscounted = finalPrice < currentPriceEntry.price;
+      const packName = packs.find(p => p.id === item.packId)?.name;
 
       return { ...item, product, targetStore: currentPriceEntry.store, currentPrice: finalPrice, isDiscounted, packName };
     });

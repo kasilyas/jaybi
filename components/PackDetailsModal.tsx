@@ -1,3 +1,4 @@
+import { packQuote } from '../lib/pricing';
 
 import React from 'react';
 import { Pack, Product } from '../types';
@@ -15,19 +16,10 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
   
   const packProducts = products.filter(p => pack.productIds.includes(p.id));
   
-  // Somme des meilleurs prix individuels
-  const totalPrice = packProducts.reduce((sum, p) => {
-    const bestPrice = Math.min(...p.prices.map(pr => pr.price));
-    return sum + bestPrice;
-  }, 0);
-
-  // Calcul du prix final avec remise
-  let finalPrice = totalPrice;
-  if (pack.price) {
-      finalPrice = pack.price;
-  } else if (pack.discountPercent) {
-      finalPrice = totalPrice * (1 - pack.discountPercent / 100);
-  }
+  const quote = packQuote(pack, products);
+  const totalPrice = quote.original;
+  const finalPrice = quote.total;
+  const active = (!pack.startsAt || Date.parse(pack.startsAt) <= Date.now()) && (!pack.expiresAt || Date.parse(pack.expiresAt) >= Date.now());
 
   return (
     <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6">
@@ -42,7 +34,7 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
               <h2 className="text-3xl font-black text-slate-900 leading-tight">{pack.name}</h2>
               <div className="flex items-center gap-2 mt-2">
                  <span className="text-emerald-600 text-[10px] font-black uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded">Offre Groupée</span>
-                 {pack.discountPercent && <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">-{pack.discountPercent}%</span>}
+                 {quote.maxDiscount > 0 && <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">Jusqu’à {quote.maxDiscount}%</span>}
               </div>
            </div>
         </div>
@@ -60,9 +52,9 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
                     <p className="text-[10px] text-slate-400 font-black uppercase mt-1">{p.brand} • {p.weight}{p.unit}</p>
                  </div>
                  <div className="text-right">
-                    <p className="text-sm font-black text-emerald-600">{bestPriceEntry.price.toFixed(2)} DH</p>
+                    <p className="text-sm font-black text-emerald-600">{(quote.lines.find(l => l?.product.id === p.id)?.price ?? 0).toFixed(2)} DH</p>
                     <div className="flex items-center gap-2 justify-end mt-1 opacity-40">
-                       <img src={STORES[bestPriceEntry.store].logo} className="h-2 w-auto grayscale" alt="" />
+                       <img src={STORES[bestPriceEntry?.store]?.logo} className="h-2 w-auto grayscale" alt="" />
                     </div>
                  </div>
               </div>
@@ -72,7 +64,7 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
 
         <div className="pt-10 border-t border-slate-100 flex items-center justify-between">
            <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Total du Pack</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Total du Pack</p><p className="text-sm text-emerald-700">Économie : {quote.savings.toFixed(2)} DH ({quote.discount} %)</p>
               <div className="flex items-baseline gap-2 mt-1">
                  {finalPrice < totalPrice && (
                     <span className="text-lg font-bold text-slate-300 line-through">{totalPrice.toFixed(2)} DH</span>
@@ -84,6 +76,7 @@ export const PackDetailsModal: React.FC<PackDetailsModalProps> = ({ pack, produc
               </div>
            </div>
            <button 
+             disabled={!quote.available || !active}
              onClick={() => { onAddAll(pack.productIds, pack.id); onClose(); }}
              className="px-10 py-6 bg-emerald-500 text-white font-black rounded-[2rem] text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center gap-4"
            >

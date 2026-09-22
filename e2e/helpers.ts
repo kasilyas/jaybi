@@ -8,8 +8,8 @@ import { test as base, expect, type Page } from '@playwright/test';
 // Test accounts defined in config.ts (DEV_BYPASS mode)
 export const TEST_ACCOUNTS = {
   admin: 'admin@qayess.io',
-  customer: 'e2e-customer@test.com',
-  contributor: 'e2e-contributor@test.com',
+  customer: 'user@qayess.ma',
+  contributor: 'tech@qayess.ma',
 };
 
 /**

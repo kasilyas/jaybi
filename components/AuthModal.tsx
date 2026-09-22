@@ -31,11 +31,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   // Verification state
   const [verificationCode, setVerificationCode] = useState('');
   const [sentCode, setSentCode] = useState('');
+  const [mailboxUrl, setMailboxUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [tempUser, setTempUser] = useState<User | null>(null);
 
@@ -47,17 +49,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
       setStep('credentials');
       setVerificationCode('');
       setError('');
+      setPasswordRequired(false);
       setIsLoading(null);
       setTempUser(null);
+      setMailboxUrl(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  // Génération du code OTP.
-  // En mode dev (DEV_BYPASS) : code fixe pour faciliter les tests.
-  // Sinon : code aléatoire (l'envoi réel par SMTP sera géré par le backend en v0.2).
-  const generateCode = () => (DEV_BYPASS ? DEV_OTP_CODE : String(Math.floor(100000 + Math.random() * 900000)));
 
   // Auto-connexion d'un compte de test (DEV ONLY). Évite l'étape OTP.
   const handleQuickTestLogin = async (accountEmail: string) => {
@@ -69,14 +68,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
       onLogin(result.user);
       onClose();
     } catch {
-      // Fallback : recherche dans la liste locale (mockData)
-      const existing = users.find(u => u.email.toLowerCase() === accountEmail.toLowerCase() && !u.isDeleted);
-      if (existing) {
-        onLogin(existing);
-        onClose();
-      } else {
-        setError('Compte de test introuvable');
-      }
+      setError(language === 'ar' ? 'تعذر الاتصال بالخادم' : 'Connexion impossible. Réessayez.');
     }
     setIsLoading(null);
   };
@@ -98,31 +90,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
         // En production, le code est envoyé par email — on utilise un placeholder
         setSentCode(DEV_OTP_CODE);
       }
+      setMailboxUrl(result.mailboxUrl || null);
       // L'utilisateur sera créé/récupéré côté backend lors du verify-otp
       setTempUser(buildNewUser(targetEmail, provider));
       setStep('verification');
       setIsLoading(null);
       return;
-    } catch (e) {
-      console.warn('[auth] API non disponible, fallback local:', e);
-    }
-
-    // Fallback local (mockData) si l'API n'est pas joignable
-    const existingUser = users.find(u => u.email.toLowerCase() === targetEmail.toLowerCase() && !u.isDeleted);
-    const code = generateCode();
-    setSentCode(code);
-    if (DEV_BYPASS) {
-      console.log(`[DEV MODE] Code de vérification pour ${targetEmail} : ${code}`);
-    }
-    if (existingUser) {
-      setTempUser(existingUser);
-    } else {
-      setTempUser(buildNewUser(targetEmail, provider));
-    }
-    setTimeout(() => {
-      setStep('verification');
+    } catch (err: any) {
+      const code = err?.code || err?.message;
+      const serverUnavailable = typeof err?.status === 'number' && err.status >= 500;
+      if (code === 'PASSWORD_REQUIRED') {
+        setPasswordRequired(true);
+        setError(language === 'ar' ? 'أدخل كلمة المرور لهذا الحساب.' : 'Ce compte requiert son mot de passe.');
+      } else if (code === 'INVALID_CREDENTIALS') {
+        setError(language === 'ar' ? 'كلمة المرور غير صحيحة.' : 'Mot de passe incorrect.');
+      } else if (code === 'OTP_RATE_LIMITED' || code === 'RATE_LIMITED') {
+        setError(language === 'ar' ? 'تم إرسال عدة طلبات. انتظر قليلاً قبل المحاولة.' : 'Trop de demandes. Attendez un instant avant de réessayer.');
+      } else if (code === 'OTP_SEND_FAILED') {
+        setError(language === 'ar' ? 'تعذر إرسال الرمز. حاول لاحقاً.' : 'Le code n’a pas pu être envoyé. Réessayez plus tard.');
+      } else if (serverUnavailable) {
+        setError(language === 'ar' ? 'خدمة الاتصال غير متاحة مؤقتًا. أعد المحاولة بعد قليل.' : 'Le service de connexion est momentanément indisponible. Réessayez dans un instant.');
+      } else {
+        setError(language === 'ar' ? 'تعذر إرسال الرمز. تحقق من البريد الإلكتروني وأعد المحاولة.' : 'Envoi impossible. Vérifiez votre email puis réessayez.');
+      }
       setIsLoading(null);
-    }, 1000);
+    }
   };
 
   const handleVerifyCode = async (e: React.FormEvent) => {
@@ -138,29 +130,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
       setIsLoading(null);
       return;
     } catch (err: any) {
-      // Si l'API a répondu avec une erreur métier (wrong code, etc.)
-      if (err?.status === 400 && err?.body?.error === 'WRONG_CODE') {
+      const code = err?.code || err?.message;
+      if (code === 'OTP_LOCKED' || code === 'OTP_RATE_LIMITED') {
+        setError(language === 'ar' ? 'تم قفل الرمز بعد عدة محاولات. اطلب رمزاً جديداً لاحقاً.' : 'Le code est verrouillé après plusieurs essais. Demandez-en un nouveau plus tard.');
+      } else if (code === 'OTP_EXPIRED') {
+        setError(language === 'ar' ? 'انتهت صلاحية الرمز. اطلب رمزاً جديداً.' : 'Le code a expiré. Demandez-en un nouveau.');
+      } else {
         setError(t.wrongCode);
-        setIsLoading(null);
-        return;
       }
-      console.warn('[auth] API verify non disponible, fallback local:', err);
-    }
-
-    // Fallback local : vérification stricte du code
-    if (verificationCode === sentCode) {
-      setTimeout(() => {
-        if (tempUser) {
-          onLogin(tempUser);
-          onClose();
-        }
-        setIsLoading(null);
-      }, 800);
-    } else {
-      setTimeout(() => {
-        setError(t.wrongCode);
-        setIsLoading(null);
-      }, 500);
+      setIsLoading(null);
     }
   };
 
@@ -222,7 +200,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
             {/* Email Form */}
             <form onSubmit={handleSubmitCredentials} className="space-y-3">
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />
+              {passwordRequired && <input autoFocus type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 px-5 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 transition-all" />}
+              {error && <p role="alert" className="text-sm text-rose-600 font-medium">{error}</p>}
 
               <button type="submit" disabled={!!isLoading} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-xl hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-widest text-[10px] mt-2 disabled:opacity-50">
                 {isLoading === 'email' ? t.identifying : (isSignUp ? t.createAccount : t.login)}
@@ -267,6 +246,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, 
               <p className="text-slate-400 text-[10px] mt-2 uppercase tracking-widest font-bold">
                 {t.codeSentTo} <br/><span className="text-slate-900 lowercase">{email}</span>
               </p>
+              {mailboxUrl && (
+                <a
+                  href={mailboxUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
+                >
+                  <Icons.Bell className="h-3 w-3" /> Ouvrir la boîte de test
+                </a>
+              )}
               
               {/* --- UI HELPER: Affichage du code pour les tests (DEV ONLY) --- */}
               {DEV_BYPASS && (

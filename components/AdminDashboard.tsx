@@ -105,9 +105,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           api.fetchAllOrders().catch(() => null),
         ]);
         if (cancelled) return;
-        if (logs && logs.length) setLocalAuditLogs(logs);
-        if (usr && usr.length) onUpdateUsers(usr);
-        if (ords && ords.length) setLocalOrders(ords);
+        if (logs) setLocalAuditLogs(logs);
+        if (usr) onUpdateUsers(usr);
+        if (ords) setLocalOrders(ords);
       } catch (e) {
         console.warn('[admin] chargement audit/users/orders échoué, fallback props:', e);
       }
@@ -121,17 +121,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [isOpen]);
 
   // Helper : exécute l'appel API puis applique la mise à jour locale.
-  // En cas d'échec API, on retombe sur la mise à jour locale seule (fallback).
-  const apiOp = async (op: () => Promise<unknown>, fallback: () => void, errMsg: string) => {
+  // Une erreur ne modifie jamais les données affichées.
+  const apiOp = async (op: () => Promise<any>, fallback: (saved: any) => void, errMsg: string) => {
     setApiLoading(true);
     setApiError(null);
     try {
-      await op();
+      const saved = await op();
+      fallback(saved);
+      return true;
     } catch (e: any) {
       console.error(errMsg, e);
       setApiError(e?.message || errMsg);
+      return false;
     } finally {
-      fallback();
       setApiLoading(false);
     }
   };
@@ -178,11 +180,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1400] bg-slate-50 flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden font-sans safe-top safe-bottom">
+    <div className="admin-shell fixed inset-0 z-[1400] bg-slate-50 flex flex-col overflow-hidden font-sans safe-top safe-bottom" dir="ltr">
       <header className="bg-white border-b border-slate-200 px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between shadow-sm z-20 shrink-0">
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
           <div className="p-2 sm:p-3 bg-slate-900 rounded-xl sm:rounded-2xl shrink-0"><Icons.Logo /></div>
-          <div className="min-w-0"><h2 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tighter truncate">Qayess Control Tower</h2><p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 hidden sm:block">Console de Pilotage 3.0</p></div>
+          <div className="min-w-0"><h2 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tighter truncate">Jaybi / Administration</h2><p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 hidden sm:block">Catalogue, opérations et configuration</p></div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {apiLoading && (
@@ -194,7 +196,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <button onClick={() => setMobileNavOpen(true)} className="lg:hidden w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all" title="Menu">
             <span className="text-xl font-black">≡</span>
           </button>
-          <button onClick={onClose} className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Minus /></button>
+          <button onClick={onClose} aria-label="Fermer l’administration" className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Minus /></button>
         </div>
       </header>
 
@@ -215,7 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              { id: 'stores', label: 'Enseignes', icon: <Icons.Tag /> },
              { id: 'campaigns', label: 'Packs Promo', icon: <Icons.Magic /> },
              { id: 'promo', label: 'Codes Coupons', icon: <Icons.Tag /> },
-             { id: 'subs', label: 'Abonnements', icon: <Icons.Lightning /> },
+             { id: 'subs', label: 'Configuration', icon: <Icons.Lightning /> },
              { id: 'audit', label: 'Audit Log', icon: <Icons.Heart /> },
              { id: 'sync', label: 'Sync Center', icon: <Icons.RefreshCw /> },
              { id: 'security', label: 'Sécurité', icon: <Icons.Shield />, badge: unresolvedSecurityCount },
@@ -337,8 +339,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const exists = products.find(old => old.id === p.id);
                   apiOp(
                     () => exists ? api.updateProduct(p.id, p) : api.createProduct(p),
-                    () => {
-                      onUpdateProducts(exists ? products.map(old => old.id === p.id ? p : old) : [...products, p]);
+                    (saved) => {
+                      onUpdateProducts(exists ? products.map(old => old.id === p.id ? saved : old) : [...products, saved]);
                       onAddLog(exists ? 'PRODUCT_UPDATE' : 'PRODUCT_CREATE', `Produit : ${p.name}`, exists ? 'info' : 'success');
                     },
                     'Erreur sauvegarde produit'
@@ -394,8 +396,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                    const exists = brands.find(old => old.id === b.id);
                    apiOp(
                      () => exists ? api.updateBrand(b.id, b) : api.createBrand(b),
-                     () => {
-                       onUpdateBrands(exists ? brands.map(old => old.id === b.id ? b : old) : [...brands, b]);
+                     (saved) => {
+                      onUpdateBrands(exists ? brands.map(old => old.id === b.id ? saved : old) : [...brands, saved]);
                        onAddLog(exists ? 'BRAND_UPDATE' : 'BRAND_CREATE', `Marque : ${b.name}`, exists ? 'info' : 'success');
                      },
                      'Erreur sauvegarde marque'
@@ -419,10 +421,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 users={users} 
                 onSave={(u) => {
                   const exists = users.find(old => old.id === u.id);
-                  apiOp(
-                    () => exists ? api.updateUser(u.id, u) : Promise.resolve(),
-                    () => {
-                      onUpdateUsers(exists ? users.map(old => old.id === u.id ? u : old) : [...users, u]);
+                  return apiOp(
+                    () => exists ? api.updateUser(u.id, u) : api.createUser(u),
+                    (saved) => {
+                      onUpdateUsers(exists ? users.map(old => old.id === u.id ? saved : old) : [...users, saved]);
                       onAddLog(exists ? 'USER_UPDATE' : 'USER_CREATE', `Action sur : ${u.email}`, exists ? 'info' : 'success');
                     },
                     'Erreur sauvegarde membre'
@@ -448,8 +450,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const exists = stores.find(old => old.id === s.id);
                   apiOp(
                     () => exists ? api.updateStore(s.id, s) : api.createStore(s),
-                    () => {
-                      onUpdateStores(exists ? stores.map(old => old.id === s.id ? s : old) : [...stores, s]);
+                    (saved) => {
+                      onUpdateStores(exists ? stores.map(old => old.id === s.id ? saved : old) : [...stores, saved]);
                       onAddLog(exists ? 'STORE_UPDATE' : 'STORE_CREATE', `Enseigne : ${s.name}`, exists ? 'info' : 'success');
                     },
                     'Erreur sauvegarde enseigne'
@@ -474,17 +476,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 products={products}
                 onSave={(p) => {
                   const exists = packs.find(old => old.id === p.id);
-                  apiOp(
+                  return apiOp(
                     () => exists ? api.updatePack(p.id, p) : api.createPack(p),
-                    () => {
-                      onUpdatePacks(exists ? packs.map(old => old.id === p.id ? p : old) : [...packs, p]);
+                    (saved) => {
+                      onUpdatePacks(exists ? packs.map(old => old.id === p.id ? saved : old) : [...packs, saved]);
                       onAddLog(exists ? 'PACK_UPDATE' : 'PACK_CREATE', `Campagne : ${p.name}`, exists ? 'info' : 'success');
                     },
                     'Erreur sauvegarde pack'
                   );
                 }}
                 onDelete={(id) => {
-                  apiOp(
+                  return apiOp(
                     () => api.deletePack(id),
                     () => {
                       onUpdatePacks(packs.map(p => p.id === id ? { ...p, isDeleted: true } : p));
@@ -503,8 +505,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const exists = promoCodes.find(old => old.id === p.id);
                   apiOp(
                     () => exists ? api.updatePromoCode(p.id, p) : api.createPromoCode(p),
-                    () => {
-                      onUpdatePromoCodes(exists ? promoCodes.map(old => old.id === p.id ? p : old) : [...promoCodes, p]);
+                    (saved) => {
+                      onUpdatePromoCodes(exists ? promoCodes.map(old => old.id === p.id ? saved : old) : [...promoCodes, saved]);
                       onAddLog(exists ? 'PROMO_UPDATE' : 'PROMO_CREATE', `Code Promo : ${p.code}`, exists ? 'info' : 'success');
                     },
                     'Erreur sauvegarde code promo'
@@ -526,15 +528,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
            {activeTab === 'subs' && (
               <SubscriptionModule 
                 config={config}
-                onUpdateConfig={(newConfig) => {
-                  apiOp(
-                    () => api.updateConfig(newConfig),
-                    () => {
-                      onUpdateConfig(newConfig);
-                      onAddLog('CONFIG_UPDATE', 'Mise à jour des paliers d\'abonnement', 'info');
-                    },
-                    'Erreur mise à jour configuration'
-                  );
+                onUpdateConfig={async (newConfig) => {
+                  const savedConfig = await api.updateConfig(newConfig);
+                  onUpdateConfig(savedConfig);
+                  onAddLog('CONFIG_UPDATE', 'Configuration enregistrée par le serveur', 'info');
                 }}
               />
            )}
@@ -571,6 +568,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  onAddLog('SYNC_DRY_RUN', `Dry-run adaptateur ${adapter} (run ${res.runId.slice(0, 8)})`, 'info');
                  await refreshSyncData();
                  return res;
+               }}
+               onQueueRun={async (adapter) => {
+                 const res = await api.queueScrapingRun(adapter);
+                 onAddLog('SYNC_QUEUED', `Collecte ${adapter} mise en file (run ${res.run.id.slice(0, 8)})`, 'info');
+                 await refreshSyncData();
                }}
                onApprove={async (runId) => {
                  await api.approveSyncRun(runId);

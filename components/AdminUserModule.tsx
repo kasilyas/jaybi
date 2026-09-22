@@ -3,9 +3,10 @@ import { User } from '../types';
 import { Icons } from '../constants';
 import { AdminModal, DeleteConfirmation } from './AdminShared';
 
-export const UserCRMModule: React.FC<{ users: User[]; onSave: (u: User) => void; onDelete: (id: string) => void }> = ({ users, onSave, onDelete }) => {
+export const UserCRMModule: React.FC<{ users: User[]; onSave: (u: User) => Promise<boolean>; onDelete: (id: string) => void }> = ({ users, onSave, onDelete }) => {
   const [editing, setEditing] = useState<User | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const emptyUser = (): User => ({ id: `USR-${Date.now()}`, name: '', email: '', role: 'customer', tier: 'free', savingsScore: 0, isPremium: false, addresses: [] });
 
@@ -33,7 +34,8 @@ export const UserCRMModule: React.FC<{ users: User[]; onSave: (u: User) => void;
         {editing && (
           <div className="space-y-6">
             <input placeholder="Nom" value={editing.name} onChange={e => setEditing({...editing, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-6 font-bold" />
-            <input placeholder="Email" value={editing.email} onChange={e => setEditing({...editing, email: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-6 font-bold" />
+            <input placeholder="Email" type="email" disabled={users.some(user => user.id === editing.id)} value={editing.email} onChange={e => setEditing({...editing, email: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-6 font-bold disabled:opacity-60 disabled:cursor-not-allowed" />
+            {!users.some(user => user.id === editing.id) && <p className="text-xs text-slate-500">Le membre utilisera cet email pour recevoir son code de connexion.</p>}
             <div className="grid grid-cols-2 gap-4">
               <select value={editing.role} onChange={e => setEditing({...editing, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-[10px] font-black uppercase">
                 <option value="customer">Client</option><option value="contributor">Contributeur</option><option value="admin">Admin</option>
@@ -42,7 +44,14 @@ export const UserCRMModule: React.FC<{ users: User[]; onSave: (u: User) => void;
                 <option value="free">Gratuit</option><option value="pack1">Pack 1</option><option value="pack2">Pack 2</option><option value="unlimited">Illimité</option>
               </select>
             </div>
-            <button onClick={() => { onSave(editing); setEditing(null); }} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl text-[10px] uppercase shadow-lg">Sauvegarder</button>
+            <button disabled={saving || !editing.name.trim() || !editing.email.trim()} onClick={async () => {
+              setSaving(true);
+              try {
+                if (await onSave(editing)) setEditing(null);
+              } finally {
+                setSaving(false);
+              }
+            }} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl text-[10px] uppercase shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">{saving ? 'Enregistrement…' : 'Sauvegarder'}</button>
           </div>
         )}
       </AdminModal>

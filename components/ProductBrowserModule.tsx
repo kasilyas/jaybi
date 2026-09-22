@@ -2,7 +2,7 @@
 import React from 'react';
 import { Product, Language, StoreName } from '../types';
 import { ProductCard } from './ProductCard';
-import { TRANSLATIONS } from '../constants';
+import { TRANSLATIONS, Icons } from '../constants';
 
 interface ProductBrowserModuleProps {
   products: Product[];
@@ -13,56 +13,60 @@ interface ProductBrowserModuleProps {
   onBrandClick: (brand: string) => void;
   onProductClick: (product: Product) => void;
   comparisonIds: string[];
+  comparisonEnabled?: boolean;
   savedIds: string[];
   currentPage: number;
   totalPages: number;
+  totalItems?: number;
   onPageChange: (page: number) => void;
 }
 
+const BROWSER_COPY = {
+  fr: { title: 'Le catalogue', subtitle: 'Les essentiels, à votre rythme.', empty: 'Aucun produit trouvé', hint: 'Essayez un autre mot-clé ou une autre catégorie.', previous: 'Page précédente', next: 'Page suivante', page: 'Page', navigation: 'Pagination du catalogue' },
+  en: { title: 'The grocery catalogue', subtitle: 'Everyday essentials, at your pace.', empty: 'No products found', hint: 'Try a different search or category.', previous: 'Previous page', next: 'Next page', page: 'Page', navigation: 'Catalogue pagination' },
+  es: { title: 'El catálogo', subtitle: 'Lo esencial, a tu ritmo.', empty: 'No se encontraron productos', hint: 'Prueba otra búsqueda o categoría.', previous: 'Página anterior', next: 'Página siguiente', page: 'Página', navigation: 'Paginación del catálogo' },
+  zh: { title: '商品目录', subtitle: '日常所需，随心选购。', empty: '未找到商品', hint: '请尝试其他关键词或分类。', previous: '上一页', next: '下一页', page: '页', navigation: '目录分页' },
+  ar: { title: 'كتالوج المنتجات', subtitle: 'احتياجاتك اليومية، على راحتك.', empty: 'لم يتم العثور على منتجات', hint: 'جرّب كلمة بحث أو فئة أخرى.', previous: 'الصفحة السابقة', next: 'الصفحة التالية', page: 'صفحة', navigation: 'صفحات الكتالوج' },
+};
+
 export const ProductBrowserModule: React.FC<ProductBrowserModuleProps> = ({
-  products, language, onAddToCart, onToggleCompare, onToggleSave, onBrandClick, onProductClick, comparisonIds, savedIds, currentPage, totalPages, onPageChange
+  products, language, onAddToCart, onToggleCompare, onToggleSave, onBrandClick, onProductClick, comparisonIds, comparisonEnabled = false, savedIds, currentPage, totalPages, totalItems, onPageChange,
 }) => {
   const t = TRANSLATIONS[language];
-  const isRTL = language === 'ar';
+  const copy = BROWSER_COPY[language];
+  const visiblePages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1);
+  const changePage = (page: number) => {
+    onPageChange(page);
+    document.getElementById('catalogue')?.scrollIntoView({ block: 'start' });
+  };
 
   return (
-    <section className="space-y-8 animate-in fade-in duration-700">
-      <div className={`flex items-center gap-4 mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
-        <h2 className="text-2xl font-black text-slate-900">{t.popularProducts}</h2>
-        <div className="h-px flex-1 bg-slate-200" />
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{products.length} {t.itemsFound}</span>
+    <section id="catalogue" aria-labelledby="catalogue-title" className="catalogue-section">
+      <div className="catalogue-heading">
+        <div><h2 id="catalogue-title">{copy.title}</h2><p>{copy.subtitle}</p></div>
+        <span className="catalogue-count" role="status">{totalItems ?? products.length} {t.itemsFound}</span>
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {products.map((p, idx) => (
-          <div key={p.id} className="animate-card" style={{ animationDelay: `${idx * 0.05}s` }}>
-            <ProductCard 
-              product={p} 
-              onClick={(prod) => onProductClick(prod)} 
-              onAddToCart={(p, store, city) => onAddToCart(p.id, store, city)} 
-              onToggleCompare={(id) => onToggleCompare(id)} 
-              onToggleSave={(id) => onToggleSave(id)}
-              isComparing={comparisonIds.includes(p.id)} 
-              isSaved={savedIds.includes(p.id)}
-              onBrandClick={onBrandClick}
-              language={language}
+      {products.length ? (
+        <div className="catalogue-grid">
+          {products.map(p => (
+            <ProductCard key={p.id} product={p} onClick={onProductClick}
+              onAddToCart={(product, store, city) => onAddToCart(product.id, store, city)}
+              onToggleCompare={onToggleCompare} onToggleSave={onToggleSave}
+              isComparing={comparisonEnabled && comparisonIds.includes(p.id)} comparisonEnabled={comparisonEnabled}
+              isSaved={savedIds.includes(p.id)} onBrandClick={onBrandClick} language={language}
             />
-          </div>
-        ))}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-12">
-          {Array.from({ length: totalPages }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => onPageChange(i + 1)}
-              className={`w-10 h-10 rounded-xl font-black text-[10px] transition-all ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-xl scale-110' : 'bg-white border border-slate-200 text-slate-400 hover:border-slate-400'}`}
-            >
-              {i + 1}
-            </button>
           ))}
         </div>
+      ) : <div className="catalogue-empty" role="status"><Icons.Search className="w-7 h-7" /><h3>{copy.empty}</h3><p>{copy.hint}</p></div>}
+      {totalPages > 1 && (
+        <nav className="catalogue-pagination" aria-label={copy.navigation}>
+          <button type="button" onClick={() => changePage(currentPage - 1)} disabled={currentPage <= 1} aria-label={copy.previous}><Icons.ChevronRight className={`w-4 h-4 ${language === 'ar' ? '' : 'rotate-180'}`} /></button>
+          {visiblePages.map((page, index) => <React.Fragment key={page}>
+            {index > 0 && page - visiblePages[index - 1] > 1 && <span aria-hidden="true">…</span>}
+            <button type="button" onClick={() => changePage(page)} aria-label={`${copy.page} ${page}`} aria-current={currentPage === page ? 'page' : undefined}>{page}</button>
+          </React.Fragment>)}
+          <button type="button" onClick={() => changePage(currentPage + 1)} disabled={currentPage >= totalPages} aria-label={copy.next}><Icons.ChevronRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} /></button>
+        </nav>
       )}
     </section>
   );

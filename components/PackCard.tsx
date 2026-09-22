@@ -1,3 +1,4 @@
+import { packQuote } from '../lib/pricing';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Pack, Product, CampaignTheme } from '../types';
@@ -15,24 +16,10 @@ export const PackCard: React.FC<PackCardProps> = ({ pack, products, onClick }) =
 
   const packProducts = useMemo(() => products.filter(p => pack.productIds.includes(p.id)), [products, pack.productIds]);
   
-  const originalTotal = useMemo(() => packProducts.reduce((sum, p) => {
-    const bestPrice = Math.min(...p.prices.map(pr => pr.price));
-    return sum + bestPrice;
-  }, 0), [packProducts]);
-
-  const finalPrice = useMemo(() => {
-    if (pack.price) return pack.price; // Use preset price if exists
-    if (pack.discountPercent) return originalTotal * (1 - pack.discountPercent / 100);
-    return originalTotal;
-  }, [pack.price, pack.discountPercent, originalTotal]);
-
-  const discountPercent = useMemo(() => {
-    if (pack.discountPercent) return pack.discountPercent;
-    if (pack.originalPrice && pack.price && pack.originalPrice > pack.price) {
-      return Math.round(((pack.originalPrice - pack.price) / pack.originalPrice) * 100);
-    }
-    return 0;
-  }, [pack.discountPercent, pack.originalPrice, pack.price]);
+  const quote = packQuote(pack, products);
+  const originalTotal = quote.original;
+  const finalPrice = quote.total;
+  const discountPercent = quote.maxDiscount;
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -98,7 +85,7 @@ export const PackCard: React.FC<PackCardProps> = ({ pack, products, onClick }) =
          </div>
          {discountPercent > 0 && (
            <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm">
-             -{discountPercent}%
+             Jusqu’à {discountPercent}%
            </div>
          )}
          {status.label && status.type !== 'expired' && (

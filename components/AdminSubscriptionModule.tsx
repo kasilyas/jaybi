@@ -1,17 +1,47 @@
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PlatformConfig, SubscriptionTier, TierMetadata } from '../types';
 import { Icons } from '../constants';
 
 interface AdminSubscriptionModuleProps {
   config: PlatformConfig;
-  onUpdateConfig: (config: PlatformConfig) => void;
+  onUpdateConfig: (config: PlatformConfig) => Promise<void>;
 }
 
-export const SubscriptionModule: React.FC<AdminSubscriptionModuleProps> = ({ config, onUpdateConfig }) => {
-  
+export const SubscriptionModule: React.FC<AdminSubscriptionModuleProps> = ({ config: savedConfig, onUpdateConfig }) => {
+  const [config, setConfig] = useState(savedConfig);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const submitting = useRef(false);
+
+  useEffect(() => { setConfig(savedConfig); }, [savedConfig]);
+
+  const updateDraft = (nextConfig: PlatformConfig) => {
+    setConfig(nextConfig);
+    setSaved(false);
+    setSaveError(null);
+  };
+
+  const saveConfig = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setSaving(true);
+    setSaved(false);
+    setSaveError(null);
+    try {
+      await onUpdateConfig({ ...config, comparisonEnabled: config.comparisonEnabled === true });
+      setSaved(true);
+    } catch {
+      setSaveError('Enregistrement impossible. La configuration active reste inchangée. Veuillez réessayer.');
+    } finally {
+      submitting.current = false;
+      setSaving(false);
+    }
+  };
+
   const updateTier = (tier: SubscriptionTier, data: Partial<TierMetadata>) => {
-    onUpdateConfig({
+    updateDraft({
       ...config,
       tiers: {
         ...config.tiers,
@@ -35,13 +65,37 @@ export const SubscriptionModule: React.FC<AdminSubscriptionModuleProps> = ({ con
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in">
+    <fieldset disabled={saving} aria-busy={saving} className="space-y-10 animate-in fade-in min-w-0">
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h3 className="text-xl font-black text-slate-900 uppercase">Comparaison de produits</h3>
+          <p className="text-sm text-slate-500 mt-2">Active le comparateur explicite. Les prix du catalogue restent accessibles.</p>
+          <p className="text-sm font-bold mt-2">État enregistré : {savedConfig.comparisonEnabled === true ? 'Activée' : 'Désactivée'}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={config.comparisonEnabled === true}
+          aria-label="Activer la comparaison de produits"
+          onClick={() => updateDraft({ ...config, comparisonEnabled: config.comparisonEnabled !== true })}
+          className={`px-5 py-3 rounded-xl font-bold transition-all ${config.comparisonEnabled === true ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+        >
+          {config.comparisonEnabled === true ? 'Activée' : 'Désactivée'}
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-4">
+        <button type="button" onClick={() => void saveConfig()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50">
+          {saving ? 'Enregistrement...' : 'Enregistrer la configuration'}
+        </button>
+        {saveError && <p role="alert" className="text-sm font-bold text-rose-600">{saveError}</p>}
+        {saved && <p role="status" className="text-sm font-bold text-emerald-600">Configuration enregistrée.</p>}
+      </div>
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-black text-slate-900 uppercase">Configuration des Packs</h3>
+        <div><h3 className="text-xl font-black text-slate-900 uppercase">Maintenance de la plateforme</h3><p className="text-sm text-slate-500 mt-2">Bloque les parcours publics. Les administrateurs conservent l’accès pour rétablir le service.</p></div>
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100">
-           <span className="text-[10px] font-black uppercase text-slate-400 px-3">Maintenance</span>
+           <span className="text-[10px] font-black uppercase text-slate-400 px-3">{config.activeMaintenance ? 'Active' : 'Inactive'}</span>
            <button 
-             onClick={() => onUpdateConfig({...config, activeMaintenance: !config.activeMaintenance})}
+             onClick={() => updateDraft({...config, activeMaintenance: !config.activeMaintenance})}
              className={`w-12 h-6 rounded-full transition-all relative ${config.activeMaintenance ? 'bg-rose-500' : 'bg-slate-200'}`}
            >
              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.activeMaintenance ? 'right-1' : 'left-1'}`} />
@@ -125,6 +179,6 @@ export const SubscriptionModule: React.FC<AdminSubscriptionModuleProps> = ({ con
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 };

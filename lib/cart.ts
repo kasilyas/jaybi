@@ -1,4 +1,5 @@
-import { CartItem, Product, StoreName } from '../types';
+import { CartItem, Product, StoreName, Pack } from '../types';
+import { effectivePrice, packDiscount, money } from './pricing';
 
 /**
  * Logique pure du panier (extraite d'App.tsx pour la testabilité).
@@ -47,7 +48,7 @@ export function updateCartQuantity(
 ): CartItem[] {
   return cart
     .map(item => {
-      if (item.productId === productId && item.store === store && item.city === city && item.packId === packId) {
+      if (packId ? item.packId === packId : item.productId === productId && item.store === store && item.city === city && !item.packId) {
         return { ...item, quantity: Math.max(0, item.quantity + delta) };
       }
       return item;
@@ -75,21 +76,21 @@ export function cartTotalItems(cart: CartItem[]): number {
 }
 
 /** Trouve le prix unitaire d'un item en tenant compte de store ET city. */
-export function getCartItemPrice(item: CartItem, products: Product[]): number {
+export function getCartItemPrice(item: CartItem, products: Product[], packs: Pack[] = []): number {
   const p = products.find(prod => prod.id === item.productId);
   if (!p) return 0;
   // Priorité : store + city exact, sinon store seul
-  const exact = p.prices.find(pr => pr.store === item.store && pr.city === item.city);
-  if (exact) return exact.price;
-  const byStore = p.prices.find(pr => pr.store === item.store);
-  return byStore?.price || 0;
+  const entries = p.prices.filter(pr => pr.available && (!item.store || pr.store === item.store)
+    && (!item.city || pr.city === item.city) && (!pr.promotionExpiresAt || Date.parse(pr.promotionExpiresAt) >= Date.now()));
+  const entry = entries.sort((a,b) => a.price - b.price)[0];
+  return entry ? effectivePrice(entry.price, p, packDiscount(packs.find(pk => pk.id === item.packId), p.id)) : 0;
 }
 
 /** Sous-total à partir du catalogue (prix par enseigne + ville). */
-export function computeSubtotal(cart: CartItem[], products: Product[]): number {
-  return cart.reduce((sum, item) => {
-    return sum + getCartItemPrice(item, products) * item.quantity;
-  }, 0);
+export function computeSubtotal(cart: CartItem[], products: Product[], packs: Pack[] = []): number {
+  return money(cart.reduce((sum, item) => {
+    return sum + getCartItemPrice(item, products, packs) * item.quantity;
+  }, 0));
 }
 
 /** Snapshot du prix unitaire par item (audit / historique). */

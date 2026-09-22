@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Product, StoreName, User, CartItem, Order, Pack, 
   Language, PromoCode, Store, Brand, PriceReport, 
@@ -41,7 +41,16 @@ const INITIAL_CONFIG: PlatformConfig = {
     pack2: { label: 'Premium', price: 49, limit: 100, features: ['IA illimitée', 'Support prioritaire'] },
     unlimited: { label: 'Business', price: 199, limit: 1000, features: ['API Access', 'Multi-comptes'] }
   },
-  activeMaintenance: false
+  activeMaintenance: false,
+  comparisonEnabled: false
+};
+
+const MARKET_COPY = {
+  fr: { eyebrow: 'Votre marché du quotidien', title: 'Bien choisir.\nSimplement.', intro: 'Retrouvez vos produits, explorez les marques et préparez votre panier en un seul endroit.', browse: 'Explorer le catalogue', listTitle: 'Votre liste, un bon départ.', listHint: 'Collez vos envies et retrouvez les produits du catalogue.', catalogue: 'Catalogue', skip: 'Aller au catalogue', close: 'Fermer', language: 'Langue', home: 'Jaybi — Accueil', demo: 'Catalogue indisponible. Veuillez réessayer plus tard.', live: 'Catalogue connecté', note: 'Disponibilités et prix à confirmer en magasin.', comparisonError: 'La comparaison est indisponible. Veuillez réessayer plus tard.', loading: 'Chargement…' },
+  en: { eyebrow: 'Your everyday grocery market', title: 'Choose well.\nKeep it simple.', intro: 'Find your essentials, explore brands and prepare your basket in one place.', browse: 'Explore the catalogue', listTitle: 'Start with your list.', listHint: 'Paste your shopping list to find products in the catalogue.', catalogue: 'Catalogue', skip: 'Skip to catalogue', close: 'Close', language: 'Language', home: 'Jaybi — Home', demo: 'Catalogue unavailable. Please try again later.', live: 'Connected catalogue', note: 'Confirm prices and availability in store.', comparisonError: 'Comparison is unavailable. Please try again later.', loading: 'Loading…' },
+  es: { eyebrow: 'Tu mercado de cada día', title: 'Elige bien.\nSin complicaciones.', intro: 'Encuentra tus productos, descubre marcas y prepara tu cesta en un solo lugar.', browse: 'Explorar el catálogo', listTitle: 'Empieza con tu lista.', listHint: 'Pega tu lista para encontrar productos del catálogo.', catalogue: 'Catálogo', skip: 'Ir al catálogo', close: 'Cerrar', language: 'Idioma', home: 'Jaybi — Inicio', demo: 'Catálogo no disponible. Inténtalo más tarde.', live: 'Catálogo conectado', note: 'Confirma precios y disponibilidad en la tienda.', comparisonError: 'La comparación no está disponible. Inténtalo más tarde.', loading: 'Cargando…' },
+  zh: { eyebrow: '您的日常生活市场', title: '精心挑选。\n简单购物。', intro: '查找日常所需，探索品牌，在一个地方准备您的购物篮。', browse: '浏览商品目录', listTitle: '从购物清单开始。', listHint: '粘贴购物清单，查找目录中的商品。', catalogue: '商品目录', skip: '跳至商品目录', close: '关闭', language: '语言', home: 'Jaybi — 首页', demo: '商品目录暂不可用，请稍后重试。', live: '在线目录', note: '请在门店确认价格和库存。', comparisonError: '暂时无法比较，请稍后重试。', loading: '加载中…' },
+  ar: { eyebrow: 'سوقك لاحتياجات كل يوم', title: 'اختيار أفضل.\nبكل بساطة.', intro: 'اعثر على منتجاتك واكتشف العلامات وجهّز سلتك في مكان واحد.', browse: 'تصفح الكتالوج', listTitle: 'ابدأ بقائمة مشترياتك.', listHint: 'الصق قائمتك للعثور على منتجات من الكتالوج.', catalogue: 'الكتالوج', skip: 'انتقل إلى الكتالوج', close: 'إغلاق', language: 'اللغة', home: 'جايبي — الرئيسية', demo: 'الكتالوج غير متاح. يرجى المحاولة لاحقاً.', live: 'كتالوج متصل', note: 'يرجى تأكيد الأسعار والتوفر في المتجر.', comparisonError: 'المقارنة غير متاحة. يرجى المحاولة لاحقاً.', loading: 'جارٍ التحميل…' },
 };
 
 export default function App() {
@@ -56,10 +65,10 @@ export default function App() {
   // ou la liste d'auto-connexion de test (DEV_BYPASS uniquement).
   const [user, setUser] = useState<User | null>(null);
 
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [packs, setPacks] = useState<Pack[]>(MOCK_PACKS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [packs, setPacks] = useState<Pack[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
   
   const [stores, setStores] = useState<Store[]>(INITIAL_STORES);
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>(MOCK_PROMO_CODES);
@@ -70,6 +79,9 @@ export default function App() {
 
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [sortOrder, setSortOrder] = useState('relevance');
+  const searchVersion = useRef(0);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -82,6 +94,10 @@ export default function App() {
   const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [comparisonProducts, setComparisonProducts] = useState<Product[]>([]);
+  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState(false);
+  const comparisonRequest = useRef(0);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null); // New state for product details
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -91,6 +107,7 @@ export default function App() {
 
   const [magicInput, setMagicInput] = useState('');
   const [isMagicLoading, setIsMagicLoading] = useState(false);
+  const [magicError, setMagicError] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // Pagination for main product browser
@@ -101,32 +118,33 @@ export default function App() {
   // Au montage : on tente de charger les données depuis l'API backend.
   // Si l'API n'est pas joignable, on garde les mockData (fallback transparent).
   const [apiAvailable, setApiAvailable] = useState(false);
+  const [catalogueLoading, setCatalogueLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const healthy = await api.checkApiHealth();
       if (cancelled) return;
-      if (!healthy) { setApiAvailable(false); return; }
-      setApiAvailable(true);
+      if (!healthy) { setApiAvailable(false); setCatalogueLoading(false); return; }
       try {
-        const [prods, pks, strs, brs, promos, cfg] = await Promise.all([
+        const [prods, pks, strs, brs, promos] = await Promise.all([
           api.fetchProducts(),
           api.fetchPacks(),
           api.fetchStores(),
           api.fetchBrands(),
           api.fetchPromoCodes(),
-          api.fetchConfig(),
         ]);
         if (cancelled) return;
-        if (prods.length) setProducts(prods);
-        if (pks.length) setPacks(pks);
-        if (strs.length) setStores(strs);
-        if (brs.length) setBrands(brs);
-        if (promos.length) setPromoCodes(promos);
-        if (cfg) setPlatformConfig(cfg);
-      } catch (e) {
-        console.warn('[api] chargement initial partiel, fallback mockData:', e);
+        setProducts(prods);
+        setPacks(pks);
+        setStores(strs);
+        setBrands(brs);
+        setPromoCodes(promos);
+        setApiAvailable(true);
+      } catch {
+        if (!cancelled) setApiAvailable(false);
+      } finally {
+        if (!cancelled) setCatalogueLoading(false);
       }
       // Restauration de session si un token JWT est présent
       const token = api.getToken();
@@ -141,8 +159,8 @@ export default function App() {
               me.role === 'admin' ? api.fetchReports() : Promise.resolve([]),
             ]);
             if (!cancelled) {
-              if (myOrders.length) setOrders(myOrders);
-              if (reports.length && me.role === 'admin') setPriceReports(reports);
+              setOrders(myOrders);
+              if (me.role === 'admin') setPriceReports(reports);
             }
           } catch (e) {
             console.warn('[api] chargement commandes/reports partiel:', e);
@@ -154,21 +172,75 @@ export default function App() {
   }, []);
 
   const t = TRANSLATIONS[language];
+  const copy = MARKET_COPY[language];
   const isRTL = language === 'ar';
+  const comparisonEnabled = platformConfig.comparisonEnabled === true;
+  const comparisonAllowed = useRef(comparisonEnabled);
+  comparisonAllowed.current = comparisonEnabled;
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+  }, [language, isRTL]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let version = 0;
+    const refreshConfig = async () => {
+      const request = ++version;
+      try {
+        const config = await api.fetchConfig();
+        if (!cancelled && request === version) setPlatformConfig(config ? { ...config, comparisonEnabled: config.comparisonEnabled === true } : { ...INITIAL_CONFIG, comparisonEnabled: false });
+      } catch {
+        if (!cancelled && request === version) setPlatformConfig(previous => ({ ...previous, comparisonEnabled: false }));
+      }
+    };
+    const onFocus = () => { void refreshConfig(); };
+    void refreshConfig();
+    const interval = window.setInterval(onFocus, 30000);
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); };
+  }, []);
+
+  useEffect(() => {
+    if (!comparisonEnabled) {
+      comparisonRequest.current++;
+      setComparisonIds([]);
+      setComparisonProducts([]);
+      setIsComparisonOpen(false);
+      setIsComparisonLoading(false);
+    }
+  }, [comparisonEnabled]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, sortOrder]);
 
   // --- DERIVED DATA ---
+  const categories = useMemo(() => Array.from(new Set(products.filter(p => !p.isDeleted).map(p => p.category))), [products]);
   const activeProducts = useMemo(() => {
-    return products.filter(p => !p.isDeleted && (
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    const query = searchQuery.trim().toLocaleLowerCase(language);
+    const filtered = products.filter(p => !p.isDeleted && (!selectedCategory || p.category === selectedCategory) && (
+      p.name.toLocaleLowerCase(language).includes(query) ||
+      p.brand.toLocaleLowerCase(language).includes(query) ||
+      p.category.toLocaleLowerCase(language).includes(query)
     ));
-  }, [products, searchQuery]);
+    const price = (p: Product) => Math.min(...p.prices.filter(entry => Number.isFinite(entry.price) && entry.price >= 0).map(entry => entry.price));
+    if (sortOrder === 'priceAsc' || sortOrder === 'priceDesc') filtered.sort((a, b) => {
+      const aPrice = price(a), bPrice = price(b);
+      if (!Number.isFinite(aPrice)) return Number.isFinite(bPrice) ? 1 : 0;
+      if (!Number.isFinite(bPrice)) return -1;
+      return sortOrder === 'priceAsc' ? aPrice - bPrice : bPrice - aPrice;
+    });
+    if (sortOrder === 'nameAsc') filtered.sort((a, b) => a.name.localeCompare(b.name, language));
+    return filtered;
+  }, [products, searchQuery, selectedCategory, sortOrder, language]);
 
   const activePacks = useMemo(() => packs.filter(p => !p.isDeleted), [packs]);
 
   const totalPages = Math.ceil(activeProducts.length / ITEMS_PER_PAGE);
-  const paginatedProducts = activeProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const safePage = Math.max(1, Math.min(currentPage, totalPages));
+  const paginatedProducts = activeProducts.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   const cartTotal = cartTotalItems(cart);
 
@@ -202,127 +274,142 @@ export default function App() {
   const handleMagicImport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!magicInput.trim()) return;
+    if (!user) {
+      setMagicError('Connectez-vous pour utiliser l’importation intelligente.');
+      setIsAuthOpen(true);
+      return;
+    }
+    setMagicError('');
     setIsMagicLoading(true);
-    
-    // 1. Parse list
-    const items = await parseGroceryList(magicInput);
-    
-    // 2. Find matches
-    let addedCount = 0;
-    items.forEach((term: string) => {
-      const match = products.find(p => p.name.toLowerCase().includes(term.toLowerCase()));
-      if (match) {
-        handleAddToCart(match.id);
-        addedCount++;
-      }
-    });
-
-    setMagicInput('');
-    setIsMagicLoading(false);
-    if (addedCount > 0) addAuditLog('MAGIC_IMPORT', `${addedCount} produits importés via IA`, 'success');
+    try {
+      const items = await parseGroceryList(magicInput);
+      let addedCount = 0;
+      items.forEach((term: string) => {
+        const match = products.find(p => p.name.toLowerCase().includes(term.toLowerCase()));
+        if (match) { handleAddToCart(match.id); addedCount++; }
+      });
+      setMagicInput('');
+      if (addedCount > 0) addAuditLog('MAGIC_IMPORT', `${addedCount} produits importés via IA`, 'success');
+      else setMagicError('Aucun produit du catalogue ne correspond à cette liste.');
+    } catch {
+      setMagicError('Importation intelligente indisponible. Réessayez plus tard.');
+    } finally {
+      setIsMagicLoading(false);
+    }
   };
 
   const handleSearchChange = async (val: string) => {
     setSearchQuery(val);
-    if (val.length > 2) {
-      const sugs = await getSmartSearchSuggestions(val);
-      setSuggestions(sugs);
+    setCurrentPage(1);
+    const version = ++searchVersion.current;
+    if (val.trim().length > 2) {
+      try {
+        const sugs = await getSmartSearchSuggestions(val);
+        if (version === searchVersion.current) setSuggestions(sugs);
+      } catch { if (version === searchVersion.current) setSuggestions([]); }
     } else {
       setSuggestions([]);
     }
   };
 
+  const resetCatalogue = () => {
+    searchVersion.current++;
+    setSearchQuery(''); setSelectedCategory(''); setSuggestions([]); setSelectedBrand(null); setLegalView(null); setShowProfile(false); setCurrentPage(1);
+  };
+
+  const toggleComparison = (id: string) => {
+    if (!comparisonAllowed.current) return;
+    setComparisonError(false);
+    setComparisonIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : previous.length < 4 ? [...previous, id] : previous);
+  };
+
+  const openComparison = async () => {
+    if (!comparisonAllowed.current || comparisonIds.length < 2 || isComparisonLoading) return;
+    const request = ++comparisonRequest.current;
+    setIsComparisonLoading(true);
+    setComparisonError(false);
+    try {
+      const authoritativeProducts = await api.fetchComparison(comparisonIds);
+      if (request !== comparisonRequest.current || !comparisonAllowed.current) return;
+      setComparisonProducts(authoritativeProducts);
+      setIsComparisonOpen(true);
+    } catch {
+      if (request !== comparisonRequest.current) return;
+      setComparisonProducts([]);
+      setIsComparisonOpen(false);
+      setComparisonError(true);
+      try {
+        const config = await api.fetchConfig();
+        if (request === comparisonRequest.current) setPlatformConfig({ ...config, comparisonEnabled: config?.comparisonEnabled === true });
+      } catch {
+        if (request === comparisonRequest.current) setPlatformConfig(previous => ({ ...previous, comparisonEnabled: false }));
+      }
+    } finally {
+      if (request === comparisonRequest.current) setIsComparisonLoading(false);
+    }
+  };
+
   const handleApplyPromo = (code: string) => {
-    const subtotal = computeSubtotal(cart, products);
+    const subtotal = computeSubtotal(cart, products, packs);
     const result = validatePromo(code, promoCodes, subtotal);
     if (!result.ok) return false;
     setAppliedPromo(result.promo);
     return true;
   };
 
+  const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutPending, setCheckoutPending] = useState(false);
+  const submittingOrder = useRef(false);
+  const pendingOrder = useRef<{ fingerprint: string; key: string } | null>(null);
   const finalizeOrder = async (mode: 'delivery' | 'roadmap') => {
-    if (!user) {
-      setIsAuthOpen(true);
-      return;
-    }
-
-    const subtotal = computeSubtotal(cart, products);
-    const itemsWithSnapshot = snapshotCartPrices(cart, products);
-
-    // Si l'API est disponible, on crée la commande côté backend (persistée).
-    if (apiAvailable) {
-      try {
-        const created = await api.createOrder({
-          items: cart.map(item => ({
-            ...item,
-            storeId: stores.find(s => s.name === item.store)?.id,
-          })),
-          mode,
-          paymentMethod: 'cod',
-          promoCodeId: appliedPromo?.id,
-        });
-        setOrders([created, ...orders]);
-        setCart([]);
-        setIsSummaryOpen(false);
-        setIsRoadmapOpen(false);
-        setAppliedPromo(null);
-        addAuditLog('ORDER_CREATED', `Commande ${created.id} créée (${mode})`, 'success');
-        const savings = computeOrderSavings(cart, products);
-        setUser({ ...user, savingsScore: user.savingsScore + savings });
-        return;
-      } catch (e) {
-        console.error('[api] erreur création commande, fallback local:', e);
-      }
-    }
-
-    // Fallback local (mockData)
-    const newOrder: Order = {
-      id: `ORD-${Date.now()}`,
-      userId: user.id,
-      items: itemsWithSnapshot,
-      total: subtotal,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      mode,
-      deliveryFee: mode === 'delivery' ? 20 : 0,
-      paymentMethod: 'cod'
-    };
-
-    setOrders([newOrder, ...orders]);
-    setCart([]);
-    setIsSummaryOpen(false);
-    setIsRoadmapOpen(false);
-    setAppliedPromo(null);
-    addAuditLog('ORDER_CREATED', `Commande ${newOrder.id} créée (${mode})`, 'success');
-    
-    if (user) {
-        const savings = computeOrderSavings(cart, products);
-        setUser({ ...user, savingsScore: user.savingsScore + savings });
-    }
+    if (!user) { setIsAuthOpen(true); return; }
+    if (submittingOrder.current) return;
+    submittingOrder.current = true; setCheckoutPending(true); setCheckoutError('');
+    const data = { items: cart.map(item => ({ ...item, storeId: stores.find(s => s.name === item.store)?.id })), mode, paymentMethod: 'cod' as const, promoCodeId: appliedPromo?.id };
+    const fingerprint = JSON.stringify({ user: user.id, data });
+    if (pendingOrder.current?.fingerprint !== fingerprint) pendingOrder.current = { fingerprint, key: crypto.randomUUID() };
+    try {
+      const created = await api.createOrder(data, pendingOrder.current.key);
+      setOrders(previous => [created, ...previous.filter(o => o.id !== created.id)]);
+      setCart([]); setIsSummaryOpen(false); setIsRoadmapOpen(false); setAppliedPromo(null);
+      pendingOrder.current = null;
+      const me = await api.fetchMe(); if (me) setUser(me);
+    } catch (error: any) {
+      const messages = {
+        fr: ['Connexion interrompue. Votre panier est conservé. Réessayez.', 'Commande refusée. Votre panier est conservé. Vérifiez les offres et votre connexion.'],
+        en: ['Connection interrupted. Your cart is saved. Please retry.', 'Order rejected. Your cart is saved. Check the offers and your session.'],
+        ar: ['انقطع الاتصال. تم الاحتفاظ بسلتك. أعد المحاولة.', 'تم رفض الطلب. سلتك محفوظة. تحقق من العروض وحسابك.'],
+        es: ['Conexión interrumpida. Tu cesta se conserva. Reintenta.', 'Pedido rechazado. Tu cesta se conserva. Revisa las ofertas y tu sesión.'],
+        zh: ['连接中断，购物车已保留。请重试。', '订单被拒绝，购物车已保留。请检查优惠和登录状态。'],
+      };
+      setCheckoutError(messages[language][error?.status ? 1 : 0]);
+    } finally { submittingOrder.current = false; setCheckoutPending(false); }
   };
 
   return (
-    <div className={`min-h-screen bg-white text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={`marketplace min-h-screen font-sans ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+      {platformConfig.activeMaintenance && user?.role !== 'admin' && <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950 px-6 text-center text-white"><div><Icons.Logo /><h1 className="mt-6 text-3xl font-black">Plateforme en maintenance</h1><p className="mt-3 text-slate-300">Nous revenons dès que possible. Merci de votre patience.</p><button onClick={() => setIsAuthOpen(true)} className="mt-8 rounded-xl border border-slate-500 px-5 py-3 text-xs font-black uppercase">Accès administrateur</button></div></div>}
+      <a className="skip-link" href="#main-content">{copy.skip}</a>
       
       {/* --- HEADER --- */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 safe-top">
-         <div className="max-w-[1920px] mx-auto px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
+      <header className="market-header safe-top">
+         <div className="market-header-inner">
 
             {/* Left: Logo & Search */}
             <div className="flex items-center gap-4 sm:gap-8 flex-1 min-w-0">
-               <div className="cursor-pointer shrink-0" onClick={() => { setSearchQuery(''); setSelectedBrand(null); setLegalView(null); setShowProfile(false); }}>
-                  <Icons.Logo />
-               </div>
+               <button type="button" className="market-wordmark" onClick={resetCatalogue} aria-label={copy.home}>jaybi<span aria-hidden="true">.</span></button>
 
                {/* Search desktop */}
                <div className="hidden lg:flex items-center gap-2 flex-1 max-w-xl relative">
-                  <div className="absolute left-4 text-slate-400"><Icons.Search className="scale-75" /></div>
+                  <div className="search-icon" aria-hidden="true"><Icons.Search className="w-5 h-5" /></div>
                   <input
-                    type="text"
+                    type="search"
+                    aria-label={t.searchPlaceholder}
+                    onKeyDown={e => { if (e.key === 'Escape') { searchVersion.current++; setSuggestions([]); } }}
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     placeholder={t.searchPlaceholder}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    className="market-search-input"
                   />
                   {suggestions.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
@@ -336,7 +423,7 @@ export default function App() {
                </div>
 
                {/* Search mobile toggle */}
-               <button onClick={() => setMobileSearchOpen(o => !o)} className="lg:hidden w-11 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0" title={t.search}>
+               <button onClick={() => setMobileSearchOpen(o => !o)} className="market-icon-button lg:hidden" aria-label={t.searchPlaceholder} aria-expanded={mobileSearchOpen} aria-controls="mobile-search">
                   <Icons.Search className="scale-75" />
                </button>
             </div>
@@ -345,7 +432,7 @@ export default function App() {
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                {/* Admin Button in Header */}
                {user?.role === 'admin' && (
-                 <button onClick={() => setIsAdminOpen(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                 <button onClick={() => setIsAdminOpen(true)} aria-label={t.admin} className="market-admin-button">
                    <Icons.Stats className="scale-75" />
                    <span className="hidden sm:inline">Console</span>
                  </button>
@@ -353,9 +440,9 @@ export default function App() {
 
                <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value as any)}
-                  className="h-11 px-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black uppercase outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all cursor-pointer"
-                  title="Language"
+                  onChange={(e) => setLanguage(e.target.value as Language)}
+                  className="market-language"
+                  aria-label={copy.language}
                >
                   <option value="fr">FR</option>
                   <option value="en">EN</option>
@@ -364,24 +451,24 @@ export default function App() {
                   <option value="ar">AR</option>
                </select>
 
-               <button onClick={() => setIsCartOpen(true)} className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-slate-900/20">
+               <button onClick={() => setIsCartOpen(true)} aria-label={`${t.cart} (${cartTotal})`} className="market-cart-button">
                   <Icons.Cart />
                   {cartTotal > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                    <span className="market-cart-count">
                        {cartTotal}
                     </span>
                   )}
                </button>
 
                {user ? (
-                 <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 pl-2 pr-4 py-1.5 bg-slate-50 rounded-full border border-slate-200 hover:bg-slate-100 transition-all">
+                 <button onClick={() => setShowProfile(true)} aria-label={t.myProfile} className="market-profile-button">
                     <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black">
                        {user.name[0]}
                     </div>
                     <span className="text-xs font-bold text-slate-700 hidden sm:block truncate max-w-[100px]">{user.name}</span>
                  </button>
                ) : (
-                 <button onClick={() => setIsAuthOpen(true)} className="px-6 py-3 bg-white border border-slate-200 text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all">
+                 <button onClick={() => setIsAuthOpen(true)} className="market-login-button">
                     {t.login}
                  </button>
                )}
@@ -391,18 +478,20 @@ export default function App() {
 
       {/* --- SEARCH MOBILE --- */}
       {mobileSearchOpen && (
-        <div className="lg:hidden sticky top-16 z-30 bg-white border-b border-slate-100 px-4 py-3 safe-top">
+        <div id="mobile-search" className="market-mobile-search lg:hidden">
           <div className="flex items-center gap-2 relative">
-            <div className="absolute left-4 text-slate-400"><Icons.Search className="scale-75" /></div>
+            <div className="search-icon" aria-hidden="true"><Icons.Search className="w-5 h-5" /></div>
             <input
-              type="text"
+              type="search"
+              aria-label={t.searchPlaceholder}
+              onKeyDown={e => { if (e.key === 'Escape') { searchVersion.current++; setMobileSearchOpen(false); setSuggestions([]); } }}
               autoFocus
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={t.searchPlaceholder}
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-12 pr-12 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all"
+              className="market-search-input mobile-search-input"
             />
-            <button onClick={() => { setMobileSearchOpen(false); setSuggestions([]); }} className="absolute right-2 w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900">
+            <button onClick={() => { searchVersion.current++; setMobileSearchOpen(false); setSuggestions([]); }} aria-label={copy.close} className="mobile-search-close market-icon-button">
               ✕
             </button>
             {suggestions.length > 0 && (
@@ -419,37 +508,30 @@ export default function App() {
       )}
 
       {/* --- MAIN CONTENT --- */}
-      <main className="max-w-[1920px] mx-auto px-4 sm:px-8 py-8 min-h-[calc(100vh-80px)]">
+      <main id="main-content" tabIndex={-1} className="market-main">
          
          {/* Top Banner: Magic Import */}
          {!selectedBrand && !legalView && !showProfile && (
-           <div className="mb-12 bg-gradient-to-r from-slate-900 to-slate-800 rounded-[3rem] p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl shadow-slate-900/10">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
-              
-              <div className="relative z-10 max-w-2xl">
-                 <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-4 border border-white/10">
-                    <Icons.Magic className="text-emerald-400 scale-75" />
-                    {t.magicImport}
-                 </div>
-                 <h1 className="text-3xl sm:text-4xl font-black mb-6 leading-tight">
-                    {language === 'ar' ? 'لديك قائمة تسوق جاهزة؟' : 'Vous avez une liste de courses ?'}
-                    <br/>
-                    <span className="text-emerald-400">{language === 'ar' ? 'دع الذكاء الاصطناعي يملأ سلتك.' : 'Laissez l\'IA remplir votre panier.'}</span>
-                 </h1>
-                 
-                 <form onSubmit={handleMagicImport} className="relative max-w-lg">
-                    <input 
-                       value={magicInput}
-                       onChange={e => setMagicInput(e.target.value)}
-                       placeholder={t.magicPlaceholder}
-                       className="w-full bg-white/10 border border-white/20 rounded-2xl py-4 pl-6 pr-32 text-white placeholder-slate-400 outline-none focus:bg-white/20 transition-all backdrop-blur-sm"
-                    />
-                    <button disabled={isMagicLoading} type="submit" className="absolute right-2 top-2 bottom-2 px-6 bg-white text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-400 transition-colors disabled:opacity-50">
-                       {isMagicLoading ? '...' : t.addToCart}
-                    </button>
-                 </form>
+           <section className="market-hero" aria-labelledby="hero-title">
+              <div className="market-hero-copy">
+                 <p className="market-eyebrow"><span aria-hidden="true" />{copy.eyebrow}</p>
+                 <h1 id="hero-title">{copy.title}</h1>
+                 <p className="market-intro">{copy.intro}</p>
+                 <a href="#catalogue" className="market-primary-button">{copy.browse}<Icons.ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} /></a>
+                 <p className="market-catalogue-status"><span className={apiAvailable ? 'status-live' : ''} aria-hidden="true" />{catalogueLoading ? copy.loading : apiAvailable ? copy.live : copy.demo}</p>
               </div>
-           </div>
+              <div className="market-list-panel">
+                 <div className="market-list-heading"><Icons.Magic className="w-5 h-5" /><span>{t.magicImport}</span></div>
+                 <h2>{copy.listTitle}</h2>
+                 <p>{copy.listHint}</p>
+                 <form onSubmit={handleMagicImport} className="market-list-form" aria-busy={isMagicLoading}>
+                    <label htmlFor="grocery-list" className="sr-only">{t.magicPlaceholder}</label>
+                    <textarea id="grocery-list" value={magicInput} onChange={e => setMagicInput(e.target.value)} placeholder={t.magicPlaceholder} rows={3} />
+                    <button disabled={isMagicLoading || !magicInput.trim()} type="submit" className="market-primary-button">{isMagicLoading ? copy.loading : t.convertCart}<Icons.Plus className="w-4 h-4" /></button>
+                 </form>
+                 {magicError && <p role="alert" className="text-sm text-red-700 mt-2">{magicError}</p>}
+              </div>
+           </section>
          )}
 
          {/* Views Logic */}
@@ -462,9 +544,11 @@ export default function App() {
               savedIds={savedIds} 
               products={products} 
               language={language}
-              onUpdateUser={(u) => { setUser({ ...user, ...u }); addAuditLog('USER_UPDATE', 'Mise à jour profil', 'info'); }}
+              onUpdateUser={async (u) => { setUser(await api.updateMyProfile(u.name ?? user.name)); }}
+              onCreateAddress={async (address) => { setUser(await api.createMyAddress(address)); }}
+              onDeleteAddress={async (id) => { setUser(await api.deleteMyAddress(id)); }}
               onLogout={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('LOGOUT', 'Déconnexion', 'info'); }}
-              onDeleteAccount={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('USER_DELETE', 'Compte supprimé', 'danger'); }}
+              onDeleteAccount={async () => { await api.disableMyAccount(); api.clearToken(); setUser(null); setOrders([]); setShowProfile(false); }}
               onClose={() => setShowProfile(false)}
               onViewOrder={(o) => setSelectedOrder(o)}
             />
@@ -477,43 +561,48 @@ export default function App() {
               onClose={() => setSelectedBrand(null)} 
             />
          ) : (
-            <div className="space-y-16">
-               <PackBrowserModule 
-                 packs={activePacks} 
-                 products={products} 
-                 language={language} 
-                 onPackClick={setSelectedPack} 
-               />
-               
-               <AdUnit language={language} slot="1234567890" />
-               
+            <div className="market-catalogue-layout">
+               <div className="market-filter-bar">
+                 <div className="market-category-tabs" role="group" aria-label={t.filterBy}>
+                   <button type="button" aria-pressed={!selectedCategory} onClick={() => setSelectedCategory('')}>{t.categoryAll}</button>
+                   {categories.map(category => <button type="button" key={category} aria-pressed={selectedCategory === category} onClick={() => setSelectedCategory(category)}>{category}</button>)}
+                 </div>
+                 <label className="market-sort"><span>{t.sortBy}</span><select value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
+                   <option value="relevance">{t.relevance}</option><option value="priceAsc">{t.priceAsc}</option><option value="priceDesc">{t.priceDesc}</option><option value="nameAsc">{t.nameAsc}</option>
+                 </select></label>
+               </div>
+               {(searchQuery || selectedCategory) && <div className="market-filter-summary"><span>{searchQuery ? `“${searchQuery}”` : selectedCategory}</span><button type="button" onClick={() => { setSearchQuery(''); setSelectedCategory(''); setSuggestions([]); searchVersion.current++; }}>{t.reset}</button></div>}
                <ProductBrowserModule 
                  products={paginatedProducts} 
                  language={language} 
                  onAddToCart={handleAddToCart}
-                 onToggleCompare={(id) => setComparisonIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                 onToggleCompare={toggleComparison}
+                 comparisonEnabled={comparisonEnabled}
                  onToggleSave={(id) => setSavedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
                  onBrandClick={setSelectedBrand}
                  onProductClick={setViewingProduct}
                  comparisonIds={comparisonIds}
                  savedIds={savedIds}
-                 currentPage={currentPage}
+                 currentPage={safePage}
                  totalPages={totalPages}
+                 totalItems={activeProducts.length}
                  onPageChange={setCurrentPage}
                />
+               <p className="market-price-note">{copy.note}</p>
+               {activePacks.length > 0 && <div className="market-packs"><PackBrowserModule packs={activePacks} products={products} language={language} onPackClick={setSelectedPack} /></div>}
             </div>
          )}
 
       </main>
 
       {/* --- FOOTER --- */}
-      <footer className="bg-slate-50 border-t border-slate-200 py-12 px-8">
-         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-4 text-slate-300">
-               <Icons.Logo className="scale-150 opacity-20" />
-               <span className="text-xs font-black uppercase tracking-widest">{t.copyright}</span>
+      <footer className="market-footer">
+         <div className="market-footer-inner">
+            <div className="market-footer-brand">
+               <button type="button" className="market-wordmark" onClick={resetCatalogue} aria-label={copy.home}>jaybi<span aria-hidden="true">.</span></button>
+               <span>{t.copyright}</span>
             </div>
-            <div className="flex gap-6 text-[10px] font-black uppercase text-slate-400">
+            <div className="market-footer-links">
                <button onClick={() => setLegalView('notice')} className="hover:text-slate-900">{t.legalNotice}</button>
                <button onClick={() => setLegalView('privacy')} className="hover:text-slate-900">{t.privacyPolicy}</button>
                {user?.role === 'admin' && (
@@ -524,17 +613,15 @@ export default function App() {
       </footer>
 
       {/* --- FLOATING ACTIONS --- */}
-      <div className="fixed bottom-8 right-8 z-30 flex flex-col gap-4">
-         {comparisonIds.length > 0 && (
-           <button onClick={() => setIsComparisonOpen(true)} className="w-14 h-14 bg-white border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform animate-in zoom-in">
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-600 text-white text-[9px] font-black rounded-full flex items-center justify-center">{comparisonIds.length}</span>
-              <Icons.Compare />
+      <div className="market-floating-actions safe-bottom">
+         {comparisonError && <p role="alert" className="market-comparison-error">{copy.comparisonError}<button type="button" aria-label={copy.close} onClick={() => setComparisonError(false)}>×</button></p>}
+         {comparisonEnabled && comparisonIds.length > 0 && (
+           <button onClick={openComparison} disabled={isComparisonLoading || comparisonIds.length < 2} aria-busy={isComparisonLoading} className="market-compare-button">
+              <Icons.Compare className="w-5 h-5" /><span>{isComparisonLoading ? copy.loading : t.compare}</span><span className="market-compare-count">{comparisonIds.length}</span>
            </button>
          )}
          {cart.length > 0 && (
-           <button onClick={() => setIsRoadmapOpen(true)} className="w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-xl shadow-slate-900/30 hover:scale-110 transition-transform animate-in zoom-in">
-              <Icons.Lightning />
-           </button>
+           <button onClick={() => setIsRoadmapOpen(true)} aria-label={t.roadmap} className="market-roadmap-button"><Icons.Lightning className="w-5 h-5" /><span>{t.roadmap}</span></button>
          )}
       </div>
 
@@ -586,7 +673,7 @@ export default function App() {
         }}
       />
 
-      <OrderSummaryModal 
+      <OrderSummaryModal error={checkoutError} pending={checkoutPending}
         isOpen={isSummaryOpen} onClose={() => setIsSummaryOpen(false)} cart={cart} products={activeProducts} packs={activePacks} language={language}
         onConfirmOrder={() => finalizeOrder('delivery')}
         onConfirmRoadmap={() => finalizeOrder('roadmap')}
@@ -611,13 +698,13 @@ export default function App() {
         language={language}
       />
 
-      <ComparisonModal 
-        isOpen={isComparisonOpen} onClose={() => setIsComparisonOpen(false)}
-        products={products.filter(p => comparisonIds.includes(p.id))}
-        onRemove={(id) => setComparisonIds(prev => prev.filter(i => i !== id))}
-        onAddToCart={(id, s, c, pref) => handleAddToCart(id, s, c, pref)}
+      {comparisonEnabled && <ComparisonModal
+        isOpen={isComparisonOpen && comparisonProducts.length > 0} onClose={() => setIsComparisonOpen(false)}
+        products={comparisonProducts}
+        onRemove={(id) => { if (!comparisonAllowed.current) return; setComparisonIds(prev => prev.filter(i => i !== id)); setComparisonProducts(prev => prev.filter(p => p.id !== id)); }}
+        onAddToCart={(id, s, c, pref) => { if (comparisonAllowed.current) handleAddToCart(id, s, c, pref); }}
         language={language}
-      />
+      />}
 
       <SubscriptionModal 
         isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)}

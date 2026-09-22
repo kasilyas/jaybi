@@ -8,8 +8,7 @@
  * En développement : créer un fichier `.env.local` avec `VITE_DEV_BYPASS=true`.
  */
 export const DEV_BYPASS: boolean =
-  import.meta.env?.VITE_DEV_BYPASS === true ||
-  import.meta.env?.VITE_DEV_BYPASS === 'true';
+  import.meta.env.DEV && import.meta.env?.VITE_DEV_BYPASS === 'true';
 
 /** Code OTP fixe utilisé uniquement quand DEV_BYPASS est actif. */
 export const DEV_OTP_CODE = '123456';

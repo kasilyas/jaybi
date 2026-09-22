@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { Product, StoreName, Language } from '../types';
 import { Icons, STORES, TRANSLATIONS } from '../constants';
 import { ProductImage } from './ProductImage';
@@ -18,6 +18,27 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
 }) => {
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen || !dialogRef.current) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const buttons = Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]')).filter(el => el.getClientRects().length);
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) { event.preventDefault(); first.focus(); }
+    };
+    dialog.addEventListener('keydown', onKeyDown);
+    return () => { dialog.removeEventListener('keydown', onKeyDown); previous?.focus(); };
+  }, [isOpen]);
 
   // Récupérer toutes les combinaisons Store + City uniques des produits sélectionnés
   const locationEntries = useMemo(() => {
@@ -37,14 +58,14 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
   return (
     <div className={`fixed inset-0 z-[600] flex items-center justify-center p-4 sm:p-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative w-full max-w-5xl bg-white border border-slate-200 rounded-[3rem] shadow-4xl flex flex-col max-h-[90vh] animate-in zoom-in-95 overflow-hidden">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="comparison-title" tabIndex={-1} className="relative w-full max-w-5xl bg-white border border-slate-200 rounded-[3rem] shadow-4xl flex flex-col max-h-[90vh] animate-in zoom-in-95 overflow-hidden">
         
         <header className={`p-8 border-b border-slate-100 flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
            <div className={isRTL ? 'text-right' : 'text-left'}>
-              <h2 className="text-2xl font-black text-slate-900">{language === 'ar' ? 'تحليل مقارن دقيق' : 'Analyse Comparative Fine'}</h2>
+              <h2 id="comparison-title" className="text-2xl font-black text-slate-900">{language === 'ar' ? 'تحليل مقارن دقيق' : 'Analyse Comparative Fine'}</h2>
               <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mt-1">{language === 'ar' ? 'اختر المتجر والمدينة المناسبة لك' : 'Choisissez le magasin et la ville qui vous conviennent'}</p>
            </div>
-           <button onClick={onClose} className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-all">
+           <button onClick={onClose} aria-label={language === 'ar' ? 'إغلاق' : language === 'en' ? 'Close' : language === 'es' ? 'Cerrar' : language === 'zh' ? '关闭' : 'Fermer'} className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-all">
               <Icons.Minus />
            </button>
         </header>

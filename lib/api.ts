@@ -5,7 +5,7 @@
  * Si le backend n'est pas joignable (ex: dev sans Docker), on retombe sur mockData.
  * Le JWT est stocké dans localStorage et envoyé en header Authorization.
  */
-import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges } from '../types';
+import { Product, Pack, User, Order, PromoCode, Store, Brand, PriceReport, AuditLog, PlatformConfig, CartItem, ProductSuggestion, SecurityAlert, ScrapingSyncRun, SyncConfig, ScrapingStatus, SyncChanges, Address } from '../types';
 
 const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:4000/api';
 const TOKEN_KEY = 'jaybi_jwt';
@@ -21,6 +21,29 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
+export async function updateMyProfile(name: string): Promise<User> {
+  return apiFetch('/users/me', { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+export async function disableMyAccount(): Promise<void> {
+  return apiFetch('/users/me', { method: 'DELETE' });
+}
+export async function createMyAddress(data: Omit<Address, 'id'>): Promise<User> {
+  return apiFetch('/users/me/addresses', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateMyAddress(id: string, data: Omit<Address, 'id'>): Promise<User> {
+  return apiFetch(`/users/me/addresses/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteMyAddress(id: string): Promise<User> {
+  return apiFetch(`/users/me/addresses/${id}`, { method: 'DELETE' });
+}
+export async function parseAiGroceryList(text: string): Promise<string[]> {
+  const result = await apiFetch<{ items: string[] }>('/ai/parse-list', { method: 'POST', body: JSON.stringify({ text }) });
+  return result.items;
+}
+export async function fetchAiSearchSuggestions(query: string): Promise<string[]> {
+  const result = await apiFetch<{ items: string[] }>('/ai/search-suggestions', { method: 'POST', body: JSON.stringify({ query }) });
+  return result.items;
+}
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
@@ -34,7 +57,8 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, body });
+    const code = typeof body.error === 'string' ? body.error : body.error?.code;
+    throw Object.assign(new Error(code || `HTTP ${res.status}`), { status: res.status, body, code });
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -51,7 +75,7 @@ export async function checkApiHealth(): Promise<boolean> {
 
 // --- AUTH ---
 
-export async function requestOtp(email: string, password?: string): Promise<{ sent: boolean; devCode?: string }> {
+export async function requestOtp(email: string, password?: string): Promise<{ sent: boolean; devCode?: string; mailboxUrl?: string }> {
   return apiFetch('/auth/request-otp', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
@@ -93,6 +117,14 @@ export async function fetchMe(): Promise<User | null> {
 
 export async function fetchProducts(): Promise<Product[]> {
   return apiFetch<Product[]>('/products');
+}
+
+export async function fetchComparison(ids: string[]): Promise<Product[]> {
+  if (ids.length < 2 || ids.length > 4 || new Set(ids).size !== ids.length || ids.some(id => !/^[A-Za-z0-9_-]{1,128}$/.test(id))) {
+    throw new Error('INVALID_INPUT');
+  }
+  const query = new URLSearchParams({ ids: ids.join(',') });
+  return apiFetch<Product[]>(`/products/comparison?${query}`, { cache: 'no-store' });
 }
 
 export async function createProduct(data: Partial<Product> & { prices?: any[] }): Promise<Product> {
@@ -140,12 +172,20 @@ export async function fetchPacks(): Promise<Pack[]> {
   return apiFetch<Pack[]>('/packs');
 }
 
+function packPayload(data: any) {
+  return { ...data, price: null, originalPrice: null, discountPercent: null,
+    productDiscounts: Object.fromEntries(data.productIds.map((id: string) => [id, data.productDiscounts?.[id] ?? data.discountPercent ?? 0])),
+    theme: data.theme?.replaceAll('-', '_'), type: data.type?.replaceAll('-', '_'),
+    startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : null,
+    expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : null };
+}
+
 export async function createPack(data: any): Promise<Pack> {
-  return apiFetch<Pack>('/packs', { method: 'POST', body: JSON.stringify(data) });
+  return apiFetch<Pack>('/packs', { method: 'POST', body: JSON.stringify(packPayload(data)) });
 }
 
 export async function updatePack(id: string, data: any): Promise<Pack> {
-  return apiFetch<Pack>(`/packs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  return apiFetch<Pack>(`/packs/${id}`, { method: 'PUT', body: JSON.stringify(packPayload(data)) });
 }
 
 export async function deletePack(id: string): Promise<void> {
@@ -194,6 +234,10 @@ export async function fetchUsers(): Promise<User[]> {
   return apiFetch<User[]>('/users');
 }
 
+export async function createUser(data: Pick<User, 'name' | 'email' | 'role' | 'tier' | 'isPremium' | 'savingsScore'>): Promise<User> {
+  return apiFetch<User>('/users', { method: 'POST', body: JSON.stringify(data) });
+}
+
 export async function updateUser(id: string, data: Partial<User>): Promise<User> {
   return apiFetch<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
@@ -212,8 +256,8 @@ export async function fetchAllOrders(): Promise<Order[]> {
   return apiFetch<Order[]>('/orders');
 }
 
-export async function createOrder(data: { items: CartItem[]; mode: 'delivery' | 'roadmap'; paymentMethod?: 'cod' | 'cmi'; promoCodeId?: string }): Promise<Order> {
-  return apiFetch<Order>('/orders', { method: 'POST', body: JSON.stringify(data) });
+export async function createOrder(data: { items: CartItem[]; mode: 'delivery' | 'roadmap'; paymentMethod?: 'cod' | 'cmi'; promoCodeId?: string }, idempotencyKey?: string): Promise<Order> {
+  return apiFetch<Order>('/orders', { method: 'POST', headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined, body: JSON.stringify(data) });
 }
 
 // --- PROMO ---
@@ -257,11 +301,13 @@ export async function fetchAuditLogs(): Promise<AuditLog[]> {
 // --- CONFIG ---
 
 export async function fetchConfig(): Promise<PlatformConfig> {
-  return apiFetch<PlatformConfig>('/config');
+  const config = await apiFetch<PlatformConfig>('/config', { cache: 'no-store' });
+  return { ...config, comparisonEnabled: config.comparisonEnabled === true };
 }
 
 export async function updateConfig(data: Partial<PlatformConfig>): Promise<PlatformConfig> {
-  return apiFetch<PlatformConfig>('/config', { method: 'PUT', body: JSON.stringify(data) });
+  const config = await apiFetch<PlatformConfig>('/config', { method: 'PUT', body: JSON.stringify(data) });
+  return { ...config, comparisonEnabled: config.comparisonEnabled === true };
 }
 
 // --- SUGGESTIONS (contributor) ---
@@ -333,6 +379,14 @@ export async function scrapingDryRun(adapter: string, csv?: string, products?: a
   return apiFetch<{ runId: string; changes: SyncChanges }>('/scraping/dry-run', {
     method: 'POST',
     body: JSON.stringify({ adapter, csv, products }),
+  });
+}
+
+/** Met une collecte d'adaptateur en file ; le worker prépare ensuite un aperçu à valider. */
+export async function queueScrapingRun(adapter: string): Promise<{ run: ScrapingSyncRun }> {
+  return apiFetch<{ run: ScrapingSyncRun }>('/scraping/run', {
+    method: 'POST',
+    body: JSON.stringify({ adapter }),
   });
 }
 

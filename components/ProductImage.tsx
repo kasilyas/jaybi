@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
-import { CATEGORY_VISUALS } from '../constants';
+import { Icons } from '../constants';
 
 interface ProductImageProps {
   product: Pick<Product, 'image' | 'name' | 'category' | 'brand'>;
@@ -20,14 +20,13 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   imgClassName = '',
   showBrand = false,
 }) => {
-  const [imageError, setImageError] = useState(false);
-  const visual = CATEGORY_VISUALS[product.category] || CATEGORY_VISUALS['default'];
-  const hasImage = product.image && product.image.trim() !== '' && !imageError;
+  const [failedImage, setFailedImage] = useState<string | null>(null);
+  const hasImage = product.image && product.image.trim() !== '' && failedImage !== product.image;
 
   if (!hasImage) {
     return (
-      <div className={`flex flex-col items-center justify-center gap-2 ${className}`}>
-        <div className="text-4xl drop-shadow-xl">{visual.emoji}</div>
+      <div role="img" aria-label={product.name} className={`flex flex-col items-center justify-center gap-2 text-slate-400 ${className}`}>
+        <Icons.Box className="w-8 h-8" />
         {showBrand && product.brand && (
           <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center px-2 line-clamp-1 max-w-[90%]">
             {product.brand}
@@ -41,7 +40,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     <img
       src={product.image}
       alt={product.name}
-      onError={() => setImageError(true)}
+      onError={() => setFailedImage(product.image)}
       loading="lazy"
       className={imgClassName}
     />

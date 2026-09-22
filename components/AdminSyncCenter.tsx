@@ -8,6 +8,7 @@ interface AdminSyncCenterProps {
   status: ScrapingStatus[];
   configs: SyncConfig[];
   onDryRun: (adapter: string, csv?: string) => Promise<{ runId: string; changes: SyncChanges }>;
+  onQueueRun: (adapter: string) => Promise<void>;
   onApprove: (runId: string) => Promise<void>;
   onReject: (runId: string) => Promise<void>;
   onImportCsv: (adapter: string, csv: string) => Promise<{ runId: string; changes: SyncChanges }>;
@@ -35,6 +36,7 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
   status,
   configs,
   onDryRun,
+  onQueueRun,
   onApprove,
   onReject,
   onImportCsv,
@@ -86,8 +88,13 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
     if (res) setPreview({ runId: res.runId, changes: res.changes, adapter });
   };
 
+  const handleQueueRun = async (adapter: string) => {
+    await runOp(() => onQueueRun(adapter), 'Erreur de mise en file');
+  };
+
   const handleApprove = async () => {
     if (!preview) return;
+    if (preview.changes.reviewRequired?.length) { setError('Des rapprochements nécessitent une revue. Corrigez la source puis relancez l’import.'); return; }
     const ok = await runOp(() => onApprove(preview.runId), 'Erreur approbation');
     if (ok !== null) setPreview(null);
   };
@@ -135,12 +142,12 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Synchronisation des prix & catalogue</p>
         </div>
         <button
-          onClick={() => handleDryRun(configs[0]?.adapter || 'marjane')}
+          onClick={() => handleQueueRun(configs.find(c => c.enabled)?.adapter || '')}
           disabled={busy || configs.length === 0}
           className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-40 shadow-lg"
         >
           <Icons.RefreshCw className={busy ? 'animate-spin' : ''} />
-          Sync global
+          Lancer une collecte
         </button>
       </div>
 
@@ -213,12 +220,12 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
                       <td className="px-6 py-5">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => handleDryRun(cfg.adapter)}
-                            disabled={busy}
+                            onClick={() => handleQueueRun(cfg.adapter)}
+                            disabled={busy || !cfg.enabled}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 text-blue-600 text-[8px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all disabled:opacity-40"
-                            title="Dry-run"
+                            title="Mettre une collecte en file"
                           >
-                            <Icons.RefreshCw className={busy ? 'animate-spin' : ''} /> Dry-run
+                            <Icons.RefreshCw className={busy ? 'animate-spin' : ''} /> Collecter
                           </button>
                           <button
                             onClick={() => setImportModal(cfg)}
@@ -334,6 +341,13 @@ export const AdminSyncCenter: React.FC<AdminSyncCenterProps> = ({
             </div>
           )}
 
+          {!!preview.changes.reviewRequired?.length && <section className="p-6 bg-amber-50 border border-amber-200 rounded-2xl">
+            <h4 className="font-bold">Rapprochements à vérifier — publication bloquée</h4>
+            <p className="text-sm">Corrigez les identifiants ou formats dans la source puis relancez l’import. Vous pouvez rejeter ce run.</p>
+            <ul>{preview.changes.reviewRequired.map((item, i) => <li key={i} className="py-3 border-b border-amber-200">
+              <strong>{item.normalized.name}</strong> → {item.candidate.name} ({Math.round(item.confidence * 100)} %)<br />{item.candidate.reason}
+            </li>)}</ul>
+          </section>}
           {/* Table des nouveaux produits */}
           {preview.changes.newProducts.length > 0 && (
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">

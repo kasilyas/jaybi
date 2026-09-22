@@ -124,6 +124,7 @@ export type Pack = {
   name: string;
   description: string;
   productIds: string[];
+  productDiscounts?: Record<string, number>;
   price?: number; 
   originalPrice?: number;
   discountPercent?: number;
@@ -213,6 +214,7 @@ export type TierMetadata = {
 export type PlatformConfig = {
   tiers: Record<SubscriptionTier, TierMetadata>;
   activeMaintenance: boolean;
+  comparisonEnabled: boolean;
 };
 
 export interface SecurityAlert {
@@ -234,6 +236,7 @@ export interface SecurityAlert {
 // --- SYNC CENTER (scraping v0.3) ---
 
 export interface SyncChanges {
+  reviewRequired?: { normalized: { name: string; sourceUrl?: string }; candidate: { id: string; name: string; reason: string }; confidence: number }[];
   newProducts: { normalized: any }[];
   priceChanges: any[];
   promotions: any[];

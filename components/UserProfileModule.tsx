@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { User, Order, Language, Product } from '../types';
+import { User, Order, Language, Product, Address } from '../types';
 import { Icons, TRANSLATIONS } from '../constants';
 
 interface UserProfileModuleProps {
@@ -9,8 +9,10 @@ interface UserProfileModuleProps {
   savedIds: string[];
   products: Product[];
   language: Language;
-  onUpdateUser: (userData: Partial<User>) => void;
-  onDeleteAccount: () => void;
+  onUpdateUser: (userData: Partial<User>) => Promise<void>;
+  onCreateAddress: (address: Omit<Address, 'id'>) => Promise<void>;
+  onDeleteAddress: (id: string) => Promise<void>;
+  onDeleteAccount: () => Promise<void>;
   onLogout: () => void;
   onClose: () => void;
   onViewOrder?: (order: Order) => void;
@@ -19,7 +21,7 @@ interface UserProfileModuleProps {
 type PasswordStep = 'idle' | 'editing' | 'verifying' | 'success';
 
 export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
-  user, orders, savedIds, products, language, onUpdateUser, onDeleteAccount, onLogout, onClose, onViewOrder
+  user, orders, savedIds, products, language, onUpdateUser, onCreateAddress, onDeleteAddress, onDeleteAccount, onLogout, onClose, onViewOrder
 }) => {
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
@@ -31,6 +33,10 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>({ label: '', details: '', city: '', isDefault: user.addresses.length === 0 });
   
   // Password Modification State
   const [pwdStep, setPwdStep] = useState<PasswordStep>('idle');
@@ -67,51 +73,48 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
     };
   }, [user, orders, savedIds, products]);
 
-  const handleUpdate = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateUser(formData);
-    setIsEditing(false);
+    setSavingProfile(true); setProfileError('');
+    try { await onUpdateUser({ name: formData.name }); setIsEditing(false); }
+    catch { setProfileError(isRTL ? 'تعذر حفظ التغييرات' : 'Modification non enregistrée. Réessayez.'); }
+    finally { setSavingProfile(false); }
   };
 
   const startPasswordChange = () => {
-    setPwdStep('editing');
-    setPwdError('');
+    setProfileError(isRTL ? 'تغيير كلمة المرور غير متاح حالياً.' : 'Le changement de mot de passe est indisponible pour le moment.');
+  };
+  const requestVerificationCode = () => {};
+  const handleVerifyAndChange = () => {};
+  const disableAccount = async () => {
+    if (!window.confirm(isRTL ? 'هل تريد تعطيل حسابك؟' : 'Désactiver votre compte ? Vous ne pourrez plus vous connecter.')) return;
+    setSavingProfile(true); setProfileError('');
+    try { await onDeleteAccount(); }
+    catch { setProfileError(isRTL ? 'تعذر تعطيل الحساب' : 'Compte non désactivé. Réessayez.'); }
+    finally { setSavingProfile(false); }
   };
 
-  const requestVerificationCode = () => {
-    if (newPwd !== confirmPwd) {
-      setPwdError(isRTL ? 'كلمات المرور غير متطابقة' : 'Les mots de passe ne correspondent pas');
-      return;
-    }
-    if (newPwd.length < 6) {
-      setPwdError(isRTL ? 'كلمة المرور قصيرة جداً' : 'Mot de passe trop court (min 6)');
-      return;
-    }
-
-    // Simulate sending code
-    const mockCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setSentCode(mockCode);
-    console.log("DEBUG: Verification code sent to email:", mockCode);
-    setPwdStep('verifying');
-    setPwdError('');
+  const saveAddress = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSavingProfile(true); setProfileError('');
+    try {
+      await onCreateAddress(addressForm);
+      setAddressForm({ label: '', details: '', city: '', isDefault: false });
+      setShowAddressForm(false);
+    } catch { setProfileError(isRTL ? 'تعذر حفظ العنوان' : 'Adresse non enregistrée. Réessayez.'); }
+    finally { setSavingProfile(false); }
   };
 
-  const handleVerifyAndChange = () => {
-    if (verifyCode === sentCode) {
-      setPwdStep('success');
-      setTimeout(() => {
-        setPwdStep('idle');
-        setNewPwd('');
-        setConfirmPwd('');
-        setVerifyCode('');
-      }, 3000);
-    } else {
-      setPwdError(isRTL ? 'رمز غير صالح' : 'Code invalide');
-    }
+  const removeAddress = async (id: string) => {
+    setSavingProfile(true); setProfileError('');
+    try { await onDeleteAddress(id); }
+    catch { setProfileError(isRTL ? 'تعذر حذف العنوان' : 'Adresse non supprimée. Réessayez.'); }
+    finally { setSavingProfile(false); }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-20">
+      {profileError && <p role="alert" className="text-red-700">{profileError}</p>}
       <header className={`flex items-center justify-between bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm ${isRTL ? 'flex-row-reverse' : ''}`}>
         <div className={`flex items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
            <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-2xl font-black text-white shadow-lg ${user.role === 'admin' ? 'bg-black' : user.isPremium ? 'bg-amber-500' : 'bg-emerald-600'}`}>
@@ -173,17 +176,42 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
                      placeholder="Nom"
                    />
                    <input 
-                     value={formData.email} 
+                     readOnly title="Le changement d’email nécessite une vérification" value={formData.email}
                      onChange={e => setFormData({...formData, email: e.target.value})}
                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/10"
                      placeholder="Email"
                    />
                    <div className="flex gap-2">
-                      <button type="submit" className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase">Sauver</button>
+                      <button type="submit" disabled={savingProfile} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase">Sauver</button>
                       <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-3 bg-slate-100 text-slate-400 rounded-xl text-[10px] font-black uppercase">Annuler</button>
                    </div>
                 </form>
               )}
+           </div>
+
+           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <h3 className="text-lg font-black text-slate-900 uppercase">Adresses</h3>
+                <button type="button" onClick={() => setShowAddressForm(value => !value)} className="text-[10px] font-black uppercase text-emerald-600">{showAddressForm ? 'Annuler' : 'Ajouter'}</button>
+              </div>
+              <div className="space-y-3">
+                {user.addresses.map(address => (
+                  <div key={address.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div><p className="font-black text-slate-800">{address.label} {address.isDefault && <span className="text-[9px] text-emerald-600 uppercase">Par défaut</span>}</p><p className="text-slate-600">{address.details}</p><p className="text-slate-500">{address.city}</p></div>
+                      <button type="button" disabled={savingProfile} onClick={() => removeAddress(address.id)} aria-label={`Supprimer l’adresse ${address.label}`} className="text-rose-500 text-xs font-black">×</button>
+                    </div>
+                  </div>
+                ))}
+                {!user.addresses.length && !showAddressForm && <p className="text-sm text-slate-500">Aucune adresse enregistrée.</p>}
+              </div>
+              {showAddressForm && <form onSubmit={saveAddress} className="mt-4 space-y-3">
+                <input required value={addressForm.label} onChange={event => setAddressForm({ ...addressForm, label: event.target.value })} placeholder="Libellé : domicile" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm" />
+                <input required value={addressForm.details} onChange={event => setAddressForm({ ...addressForm, details: event.target.value })} placeholder="Adresse complète" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm" />
+                <input required value={addressForm.city} onChange={event => setAddressForm({ ...addressForm, city: event.target.value })} placeholder="Ville" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm" />
+                <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={addressForm.isDefault} onChange={event => setAddressForm({ ...addressForm, isDefault: event.target.checked })} /> Adresse par défaut</label>
+                <button disabled={savingProfile} className="w-full py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase disabled:opacity-50">Enregistrer l’adresse</button>
+              </form>}
            </div>
 
            {/* Bloc Sécurité / Mot de passe */}
@@ -283,7 +311,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
            </button>
 
            <button
-             onClick={onDeleteAccount}
+             disabled={savingProfile} onClick={disableAccount}
              className="w-full p-6 bg-rose-50 border border-rose-100 text-rose-500 rounded-[2rem] text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3"
            >
               <Icons.Trash className="scale-75" />
