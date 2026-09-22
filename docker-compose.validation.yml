@@ -1,0 +1,18 @@
+services:
+  db:
+    container_name: jaybi-validation-db
+    ports: !override
+      - "127.0.0.1:55434:5432"
+  api:
+    image: jaybi-api
+    container_name: jaybi-validation-api
+    ports: !override
+      - "127.0.0.1:4400:4000"
+  seed:
+    image: jaybi-seed
+    container_name: jaybi-validation-seed
+  web:
+    image: jaybi-web
+    container_name: jaybi-validation-web
+    ports: !override
+      - "127.0.0.1:3317:80"

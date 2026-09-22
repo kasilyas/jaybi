@@ -8,7 +8,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend (typecheck + tests + build)
+    name: Frontend (audit + typecheck + tests + build + E2E)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,9 +17,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npx vitest run
+      - run: npm audit --omit=dev
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.redesign.config.ts
 
   backend:
     name: Backend (typecheck + tests)
@@ -28,9 +31,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: jaybi
-          POSTGRES_PASSWORD: jaybi
-          POSTGRES_DB: jaybi
+          POSTGRES_USER: jaybi_qa
+          POSTGRES_PASSWORD: jaybi_qa
+          POSTGRES_DB: jaybi_qa
         ports:
           - 5432:5432
         options: >-
@@ -39,7 +42,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://jaybi:jaybi@localhost:5432/jaybi?schema=public
+      DATABASE_URL: postgresql://jaybi_qa:jaybi_qa@localhost:5432/jaybi_qa?schema=public
+      QA_DATABASE_URL: postgresql://jaybi_qa:jaybi_qa@localhost:5432/jaybi_qa?schema=public
       JWT_SECRET: ci-test-secret-32chars-minimum!!
       DEV_BYPASS: 'true'
       NODE_ENV: test
@@ -52,11 +56,28 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
         working-directory: backend
+      - run: npm audit --omit=dev
+        working-directory: backend
       - run: npx prisma migrate deploy
         working-directory: backend
       - run: npx prisma db seed
         working-directory: backend
-      - run: npx tsc --noEmit
+      - name: Marquer explicitement la base QA
+        run: PGPASSWORD=jaybi_qa psql -h localhost -U jaybi_qa -d jaybi_qa -f tests/qa-marker.sql
         working-directory: backend
-      - run: npx vitest run
+      - run: npm run typecheck
         working-directory: backend
+      - run: npm test
+        working-directory: backend
+      - run: npm run test:integration
+        working-directory: backend
+
+  docker:
+    name: Images Docker
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-docker-build-secret-minimum-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet
+      - run: docker compose build

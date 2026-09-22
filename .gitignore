@@ -36,4 +36,10 @@ data/*.js.map
 types.js
 types.js.map
 
+# Playwright artifacts
+e2e-report/
+test-results/
+
+# Sauvegardes locales de base (données réelles, jamais versionnées)
+backups/*.dump
 

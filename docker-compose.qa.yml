@@ -1,0 +1,19 @@
+name: jaybi-qa
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jaybi_qa
+      POSTGRES_PASSWORD: qa-local-only
+      POSTGRES_DB: jaybi_qa
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - jaybi-qa-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaybi_qa -d jaybi_qa"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  jaybi-qa-data:

@@ -3,6 +3,7 @@
 # pour que les imports relatifs du seed (../../data, ../../types) restent valides.
 FROM node:22-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache openssl
 
 # Dépendances backend
 COPY backend/package*.json ./backend/
@@ -27,6 +28,7 @@ RUN cd backend && npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
