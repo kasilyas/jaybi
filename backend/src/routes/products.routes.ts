@@ -1,7 +1,10 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
+import { Router } from '../lib/router.js';
 import { z } from 'zod';
+import { replacePrices } from '../lib/prices.js';
 import { prisma } from '../lib/prisma.js';
 import { serializeProduct } from '../lib/serialize.js';
+import { isComparisonEnabled } from '../lib/platformConfig.js';
 import { addAuditLog } from '../lib/audit.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 
@@ -43,6 +46,33 @@ productsRouter.get('/', async (_req, res: Response) => {
     orderBy: { name: 'asc' },
   });
   res.json(products.map(serializeProduct));
+});
+
+const comparisonQuerySchema = z.object({
+  ids: z.string().max(515).transform(value => value.split(',')).pipe(
+    z.array(z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/)).min(2).max(4)
+      .refine(ids => new Set(ids).size === ids.length, 'Duplicate product IDs'),
+  ),
+}).strict();
+
+productsRouter.get('/comparison', async (req, res: Response, next) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const cfg = await prisma.appConfig.findUnique({ where: { id: 'singleton' } });
+    if (!isComparisonEnabled(cfg)) return res.status(403).json({ error: 'FEATURE_DISABLED' });
+    const parsed = comparisonQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
+    const products = await prisma.product.findMany({
+      where: { id: { in: parsed.data.ids }, isDeleted: false, isActive: true },
+      include: { brand: true, prices: { where: { store: { isActive: true, isDeleted: false } }, include: { store: true } } },
+      take: 4,
+    });
+    if (products.length !== parsed.data.ids.length) return res.status(404).json({ error: 'PRODUCTS_UNAVAILABLE' });
+    const byId = new Map(products.map(product => [product.id, product]));
+    res.json(parsed.data.ids.map(id => serializeProduct(byId.get(id)!)));
+  } catch (error) {
+    next(error);
+  }
 });
 
 productsRouter.get('/:id', async (req, res: Response) => {
@@ -135,20 +165,18 @@ productsRouter.put('/:id', authenticate, requireRole('admin'), async (req, res: 
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
   const { prices, flashSaleStartsAt, flashSaleEndsAt, ...data } = parsed.data;
   const id = req.params.id;
-  // Remplacement simple des prix : on supprime puis recrée
-  if (prices) {
-    await prisma.priceEntry.deleteMany({ where: { productId: id } });
-  }
-  const p = await prisma.product.update({
+  const p = await prisma.$transaction(async tx => {
+    await tx.product.update({
     where: { id },
     data: {
       ...data,
       ...(flashSaleStartsAt !== undefined ? { flashSaleStartsAt: flashSaleStartsAt ? new Date(flashSaleStartsAt) : null } : {}),
       ...(flashSaleEndsAt !== undefined ? { flashSaleEndsAt: flashSaleEndsAt ? new Date(flashSaleEndsAt) : null } : {}),
-      ...(prices ? { prices: { create: prices } } : {}),
     },
-    include: { brand: true, prices: { include: { store: true } } },
-  });
+    });
+    if (prices) await replacePrices(tx, id, prices);
+    return tx.product.findUniqueOrThrow({ where: { id }, include: { brand: true, prices: { include: { store: true } } } });
+  }, { isolationLevel: 'Serializable' });
   await addAuditLog({ action: 'PRODUCT_UPDATE', user: req.user!.email, userEmail: req.user!.email, details: `Produit : ${p.name}`, type: 'info' });
   res.json(serializeProduct(p));
 });

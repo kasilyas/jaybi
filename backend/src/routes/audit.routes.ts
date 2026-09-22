@@ -1,4 +1,5 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
+import { Router } from '../lib/router.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 

@@ -30,10 +30,15 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return res.status(401).json({ error: 'INVALID_TOKEN' });
   }
   // DB lookup : vérifie que l'utilisateur est toujours valide
-  const dbUser = await prisma.user.findUnique({
-    where: { id: payload.sub },
-    select: { id: true, role: true, isDeleted: true, isSuspended: true },
-  });
+  let dbUser;
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, isDeleted: true, isSuspended: true },
+    });
+  } catch (error) {
+    return next(error);
+  }
   if (!dbUser || dbUser.isDeleted) {
     return res.status(401).json({ error: 'ACCOUNT_DISABLED' });
   }

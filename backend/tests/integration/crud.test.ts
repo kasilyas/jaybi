@@ -14,6 +14,7 @@ try {
 } catch (e) {
   console.warn('[integration] DB not available, skipping:', (e as Error).message);
   dbAvailable = false;
+  if (process.env.REQUIRE_QA_DB === 'true') throw new Error('Required QA database is unavailable');
 }
 
 afterAll(async () => {
@@ -23,8 +24,13 @@ afterAll(async () => {
 const app = createApp();
 
 async function login(email: string) {
-  await request(app).post('/api/auth/request-otp').send({ email });
-  const r = await request(app).post('/api/auth/verify-otp').send({ email, code: '123456' });
+  let r = await request(app).post('/api/auth/dev-login').send({ email });
+  if (r.status === 403) {
+    const otp = await request(app).post('/api/auth/request-otp').send({ email });
+    expect(otp.status).toBe(200);
+    r = await request(app).post('/api/auth/verify-otp').send({ email, code: otp.body.devCode });
+  }
+  expect(r.status).toBe(200);
   return { token: r.body.token as string, user: r.body.user };
 }
 
@@ -44,6 +50,27 @@ describe.runIf(dbAvailable)('USERS (admin only)', () => {
     const { token } = await login(CUSTOMER);
     const r = await request(app).get('/api/users').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(403);
+  });
+
+  it('POST /api/users as admin creates an OTP-ready member', async () => {
+    const { token } = await login(ADMIN);
+    const email = `admin-created-${Date.now()}@test.com`;
+    const r = await request(app)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Compte créé par admin', email, role: 'contributor', tier: 'pack1', isPremium: false, savingsScore: 0 });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ email, role: 'contributor', tier: 'pack1' });
+    expect(r.body).not.toHaveProperty('passwordHash');
+    await prisma.user.delete({ where: { id: r.body.id } });
+  });
+
+  it('POST /api/users rejects customers and duplicate emails', async () => {
+    const { token: customerToken } = await login(CUSTOMER);
+    expect((await request(app).post('/api/users').set('Authorization', `Bearer ${customerToken}`).send({ name: 'Non', email: 'no@test.com' })).status).toBe(403);
+
+    const { token: adminToken } = await login(ADMIN);
+    expect((await request(app).post('/api/users').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Doublon', email: ADMIN })).status).toBe(409);
   });
 
   it('PUT /api/users/:id as admin → 200 (change tier)', async () => {
@@ -150,10 +177,11 @@ describe.runIf(dbAvailable)('PACKS (admin CRUD)', () => {
 
   it('POST /api/packs as admin → 201', async () => {
     const { token } = await login(ADMIN);
+    const product = await prisma.product.findFirstOrThrow({ where: { isDeleted: false, isActive: true } });
     const r = await request(app)
       .post('/api/packs')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: `Pack Test ${Date.now()}`, description: 'Test pack' });
+      .send({ name: `Pack Test ${Date.now()}`, description: 'Test pack', productIds: [product.id], productDiscounts: { [product.id]: 10 } });
     expect(r.status).toBe(201);
     expect(r.body.id).toBeDefined();
   });
@@ -173,7 +201,7 @@ describe.runIf(dbAvailable)('PACKS (admin CRUD)', () => {
     const created = await request(app)
       .post('/api/packs')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: `Pack PUT ${Date.now()}` });
+      .send({ name: `Pack PUT ${Date.now()}`, productIds: [(await prisma.product.findFirstOrThrow({where:{isDeleted:false}})).id] });
     expect(created.status).toBe(201);
     const r = await request(app)
       .put(`/api/packs/${created.body.id}`)
@@ -188,7 +216,7 @@ describe.runIf(dbAvailable)('PACKS (admin CRUD)', () => {
     const created = await request(app)
       .post('/api/packs')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: `Pack DELETE ${Date.now()}` });
+      .send({ name: `Pack DELETE ${Date.now()}`, productIds: [(await prisma.product.findFirstOrThrow({where:{isDeleted:false}})).id] });
     expect(created.status).toBe(201);
     const r = await request(app)
       .delete(`/api/packs/${created.body.id}`)

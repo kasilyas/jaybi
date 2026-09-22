@@ -11,6 +11,7 @@ try {
 } catch (e) {
   console.warn('[integration] DB not available, skipping:', (e as Error).message);
   dbAvailable = false;
+  if (process.env.REQUIRE_QA_DB === 'true') throw new Error('Required QA database is unavailable');
 }
 
 afterAll(async () => {
@@ -20,8 +21,8 @@ afterAll(async () => {
 const app = createApp();
 
 async function login(email: string) {
-  await request(app).post('/api/auth/request-otp').send({ email });
-  const r = await request(app).post('/api/auth/verify-otp').send({ email, code: '123456' });
+  const r = await request(app).post('/api/auth/dev-login').send({ email });
+  expect(r.status).toBe(200);
   return r.body.token as string;
 }
 

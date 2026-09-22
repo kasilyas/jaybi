@@ -1,9 +1,11 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
+import { Router } from '../lib/router.js';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { signToken } from '../lib/jwt.js';
-import { generateOtp, sendOtpEmail, DEV_OTP_CODE } from '../lib/otp.js';
+import { generateOtp, sendOtpEmail } from '../lib/otp.js';
+import { OtpChallenges } from '../lib/otpChallenges.js';
 import { addAuditLog } from '../lib/audit.js';
 import { serializeUser } from '../lib/serialize.js';
 import { env } from '../config/env.js';
@@ -15,18 +17,17 @@ export const authRouter = Router();
 
 // Stockage transitoire des OTP (email -> { code, expiresAt }).
 // MVP mono-instance. En production multi-instance : utiliser Redis/DB.
-const otpStore = new Map<string, { code: string; expiresAt: number }>();
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const otpStore = new OtpChallenges();
 
 const requestOtpSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email().max(254).transform(v => v.toLowerCase()),
   password: z.string().optional(),
 });
 
 const verifyOtpSchema = z.object({
-  email: z.string().email(),
-  code: z.string().length(6),
-  name: z.string().optional(), // pour l'inscription
+  email: z.string().trim().email().max(254).transform(v => v.toLowerCase()),
+  code: z.string().regex(/^\d{6}$/),
+  name: z.string().trim().min(1).max(120).optional(),
 });
 
 /**
@@ -49,16 +50,18 @@ authRouter.post('/request-otp', async (req, res: Response) => {
   }
 
   const code = generateOtp();
-  otpStore.set(email.toLowerCase(), { code, expiresAt: Date.now() + OTP_TTL_MS });
+  const challengeId = otpStore.issue(email, code);
 
   try {
     await sendOtpEmail(email, code);
   } catch {
+    otpStore.discard(email, challengeId);
     return res.status(500).json({ error: 'OTP_SEND_FAILED' });
   }
 
   const response: any = { sent: true };
   if (env.devBypass) response.devCode = code; // dev only
+  if (env.localMailboxUrl) response.mailboxUrl = env.localMailboxUrl;
   res.json(response);
 });
 
@@ -72,19 +75,8 @@ authRouter.post('/verify-otp', injectionGuard('/api/auth/verify-otp'), async (re
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
 
   const { email, name } = parsed.data;
-  const key = email.toLowerCase();
-  const entry = otpStore.get(key);
-
-  // En dev bypass, le code attendu est toujours 123456, MAIS on exige
-  // qu'une entrée OTP existe et ne soit pas expirée (anti-bypass sans request).
-  if (!entry || entry.expiresAt < Date.now()) {
-    return res.status(400).json({ error: 'OTP_EXPIRED' });
-  }
-  const expectedCode = env.devBypass ? DEV_OTP_CODE : entry.code;
-  if (parsed.data.code !== expectedCode) {
-    return res.status(400).json({ error: 'WRONG_CODE' });
-  }
-  otpStore.delete(key);
+  const verification = otpStore.verify(email, parsed.data.code);
+  if (verification !== 'OK') return res.status(verification === 'OTP_LOCKED' ? 429 : 400).json({ error: verification });
 
   // Trouve ou crée l'utilisateur
   let user = await prisma.user.findUnique({ where: { email }, include: { addresses: true } });
@@ -105,6 +97,7 @@ authRouter.post('/verify-otp', injectionGuard('/api/auth/verify-otp'), async (re
   }
 
   if (user.isDeleted) return res.status(403).json({ error: 'ACCOUNT_DISABLED' });
+  if (user.isSuspended) return res.status(403).json({ error: 'ACCOUNT_SUSPENDED' });
 
   const token = signToken({ sub: user.id, email: user.email, role: user.role });
   await addAuditLog({

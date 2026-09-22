@@ -1,47 +1,74 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
+import { Router } from '../lib/router.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { addAuditLog } from '../lib/audit.js';
+import { configJson, isComparisonEnabled, serializeConfig } from '../lib/platformConfig.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 
 export const configRouter = Router();
 
-const DEFAULT_TIERS = {
-  free: { label: 'Gratuit', price: 0, limit: 5, features: ['Comparaison simple'] },
-  pack1: { label: 'Essentiel', price: 29, limit: 20, features: ['Roadmap GPS', 'Sans pub'] },
-  pack2: { label: 'Premium', price: 49, limit: 100, features: ['IA illimitée', 'Support prioritaire'] },
-  unlimited: { label: 'Business', price: 199, limit: 1000, features: ['API Access', 'Multi-comptes'] },
-};
-
-async function getConfig() {
-  let cfg = await prisma.appConfig.findUnique({ where: { id: 'singleton' } });
-  if (!cfg) {
-    cfg = await prisma.appConfig.create({ data: { id: 'singleton', tiers: DEFAULT_TIERS, activeMaintenance: false } });
+configRouter.get('/', async (_req, res: Response, next) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const cfg = await prisma.appConfig.findUnique({ where: { id: 'singleton' } });
+    res.json(serializeConfig(cfg));
+  } catch (error) {
+    next(error);
   }
-  return cfg;
-}
-
-configRouter.get('/', async (_req, res: Response) => {
-  const cfg = await getConfig();
-  res.json({ tiers: cfg.tiers, activeMaintenance: cfg.activeMaintenance });
 });
+
+const tierSchema = z.object({
+  label: z.string().min(1).max(200),
+  price: z.number().nonnegative(),
+  limit: z.number().int().nonnegative(),
+  features: z.array(z.string().max(500)).max(100),
+  isRecommended: z.boolean().optional(),
+}).strict();
 
 const updateSchema = z.object({
-  tiers: z.record(z.any()).optional(),
+  tiers: z.object({
+    free: tierSchema.optional(),
+    pack1: tierSchema.optional(),
+    pack2: tierSchema.optional(),
+    unlimited: tierSchema.optional(),
+  }).strict().optional(),
   activeMaintenance: z.boolean().optional(),
-});
+  comparisonEnabled: z.boolean().optional(),
+}).strict();
 
-configRouter.put('/', authenticate, requireRole('admin'), async (req, res: Response) => {
+configRouter.put('/', authenticate, requireRole('admin'), async (req, res: Response, next) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
-  const cfg = await getConfig();
-  const updated = await prisma.appConfig.update({
-    where: { id: cfg.id },
-    data: {
-      ...(parsed.data.tiers ? { tiers: parsed.data.tiers } : {}),
-      ...(parsed.data.activeMaintenance !== undefined ? { activeMaintenance: parsed.data.activeMaintenance } : {}),
-    },
-  });
-  await addAuditLog({ action: 'CONFIG_UPDATE', user: req.user!.email, userEmail: req.user!.email, details: 'Mise à jour configuration plateforme', type: 'info' });
-  res.json({ tiers: updated.tiers, activeMaintenance: updated.activeMaintenance });
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const cfg = await tx.appConfig.findUnique({ where: { id: 'singleton' } });
+      const current = serializeConfig(cfg);
+      const comparisonEnabled = parsed.data.comparisonEnabled ?? current.comparisonEnabled;
+      const data = {
+        tiers: {
+          ...configJson(cfg?.tiers),
+          ...current.tiers,
+          ...parsed.data.tiers,
+          __features: { ...configJson(configJson(cfg?.tiers).__features), comparisonEnabled },
+        },
+        activeMaintenance: parsed.data.activeMaintenance ?? current.activeMaintenance,
+      };
+      const saved = await tx.appConfig.upsert({
+        where: { id: 'singleton' },
+        create: { id: 'singleton', ...data },
+        update: data,
+      });
+      await tx.auditLog.create({ data: {
+        action: 'CONFIG_UPDATE',
+        user: req.user!.email,
+        userEmail: req.user!.email,
+        details: `Mise à jour configuration plateforme; comparisonEnabled: ${isComparisonEnabled(cfg)} -> ${comparisonEnabled}`,
+        type: 'info',
+      } });
+      return saved;
+    }, { isolationLevel: 'Serializable' });
+    res.set('Cache-Control', 'no-store').json(serializeConfig(updated));
+  } catch (error) {
+    next(error);
+  }
 });

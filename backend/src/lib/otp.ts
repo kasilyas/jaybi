@@ -1,4 +1,6 @@
 import { env } from '../config/env.js';
+import { randomInt } from 'node:crypto';
+import nodemailer from 'nodemailer';
 
 /**
  * Génération / vérification des codes OTP (2FA email).
@@ -11,7 +13,7 @@ export const DEV_OTP_CODE = '123456';
 
 export function generateOtp(): string {
   if (env.devBypass) return DEV_OTP_CODE;
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 /**
@@ -20,7 +22,15 @@ export function generateOtp(): string {
  */
 export async function sendOtpEmail(email: string, code: string): Promise<void> {
   if (env.devBypass) return; // no-op
-  // TODO(prod): brancher nodemailer avec env.smtp
-  // Pour l'instant on lève pour signaler que SMTP n'est pas configuré en prod.
-  throw new Error('SMTP not configured: cannot send OTP in production mode');
+  if (!env.smtp.host) throw new Error('SMTP not configured');
+  const transport = nodemailer.createTransport({
+    host: env.smtp.host, port: env.smtp.port ?? 587, secure: env.smtp.port === 465,
+    requireTLS: env.smtp.requireTls,
+    auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+  });
+  try {
+    await transport.sendMail({ from: env.smtp.from, to: email, subject: 'Votre code de connexion Jaybi',
+      text: `Votre code de connexion est ${code}. Il expire dans 10 minutes. Ne le partagez pas.` });
+  } finally { transport.close(); }
 }

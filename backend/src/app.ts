@@ -1,4 +1,7 @@
 import express from 'express';
+import { errorHandler } from './middleware/errors.js';
+import { asyncHandler } from './lib/router.js';
+import { prisma } from './lib/prisma.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -17,6 +20,8 @@ import { configRouter } from './routes/config.routes.js';
 import { suggestionsRouter } from './routes/suggestions.routes.js';
 import { securityRouter } from './routes/security.routes.js';
 import { scrapingRouter } from './routes/scraping.routes.js';
+import { aiRouter } from './routes/ai.routes.js';
+import { maintenanceGuard } from './middleware/maintenance.js';
 
 // Rate limiter global : 100 req / 15 min par IP (désactivé en test)
 const globalLimiter = rateLimit({
@@ -47,12 +52,17 @@ export function createApp() {
   }));
   app.use(cors({ origin: env.corsOrigin, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
-  app.use(globalLimiter);
 
   // Health check (sans exposer nodeEnv en prod)
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/ready', asyncHandler(async (_req, res) => {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready' });
+  }));
+  app.use(globalLimiter);
 
   // Routes API (préfixe /api)
+  app.use('/api', asyncHandler(maintenanceGuard));
   app.use('/api/auth', authLimiter, authRouter);
   app.use('/api/products', productsRouter);
   app.use('/api/users', usersRouter);
@@ -67,21 +77,13 @@ export function createApp() {
   app.use('/api/suggestions', suggestionsRouter);
   app.use('/api/security', securityRouter);
   app.use('/api/scraping', scrapingRouter);
+  app.use('/api/ai', aiRouter);
 
   // 404
   app.use((_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
 
   // Gestion d'erreurs — en prod, on ne leak pas err.message
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('[error]', err);
-    const status = err.status ?? 500;
-    const code = err.code ?? 'INTERNAL_ERROR';
-    if (env.isDev) {
-      res.status(status).json({ error: code, message: err.message });
-    } else {
-      res.status(status).json({ error: code });
-    }
-  });
+  app.use(errorHandler);
 
   return app;
 }

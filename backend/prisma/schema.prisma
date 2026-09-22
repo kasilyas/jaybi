@@ -185,11 +185,18 @@ model PriceEntry {
   promotionExpiresAt DateTime?
   lastUpdated        DateTime @default(now())
   available          Boolean  @default(true)
+  // Provenance de l'offre actuellement publiée. Les données historiques restent nulles.
+  source             String?
+  sourceUrl          String?
+  seller             String?
+  scrapedAt          DateTime?
   product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   history            PriceHistory[]
 
   @@index([productId])
   @@index([storeId])
+  @@index([source])
+  @@index([scrapedAt])
   @@map("price_entries")
 }
 
@@ -220,6 +227,7 @@ model Pack {
 model PackProduct {
   packId    String
   productId String
+  discountPercent Float @default(0)
   pack      Pack    @relation(fields: [packId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -258,8 +266,11 @@ model Order {
   paymentMethod  PaymentMethod @default(cod)
   createdAt      DateTime      @default(now())
   items          OrderItem[]
+  idempotencyKey String?
+  requestHash String?
 
   @@index([userId])
+  @@unique([userId, idempotencyKey])
   @@map("orders")
 }
 
@@ -272,6 +283,8 @@ model OrderItem {
   city       String?
   quantity   Int
   unitPrice  Float?  // snapshot pour audit
+  originalUnitPrice Float?
+  discountPercent Float?
   packId     String?
   order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 

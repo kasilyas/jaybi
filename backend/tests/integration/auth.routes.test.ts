@@ -14,6 +14,7 @@ try {
 } catch (e) {
   console.warn('[integration] DB not available, skipping:', (e as Error).message);
   dbAvailable = false;
+  if (process.env.REQUIRE_QA_DB === 'true') throw new Error('Required QA database is unavailable');
 }
 
 afterAll(async () => {
@@ -74,6 +75,40 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
     expect(r.body.email).toBe('user@qayess.ma');
   });
 
+  it('gère les adresses du titulaire et une seule adresse par défaut', async () => {
+    const login = await request(app).post('/api/auth/dev-login').send({ email: 'user@qayess.ma' });
+    const token = login.body.token;
+    const marker = Date.now();
+    const homeLabel = `Test domicile ${marker}`;
+    const officeLabel = `Test bureau ${marker}`;
+    const first = await request(app).post('/api/users/me/addresses').set('Authorization', `Bearer ${token}`)
+      .send({ label: homeLabel, details: '1 rue de test', city: 'Rabat', isDefault: true });
+    expect(first.status).toBe(201);
+    const firstAddress = first.body.addresses.find((address: any) => address.label === homeLabel);
+    expect(firstAddress.isDefault).toBe(true);
+
+    const second = await request(app).post('/api/users/me/addresses').set('Authorization', `Bearer ${token}`)
+      .send({ label: officeLabel, details: '2 avenue de test', city: 'Casablanca', isDefault: true });
+    expect(second.status).toBe(201);
+    expect(second.body.addresses.filter((address: any) => address.isDefault)).toHaveLength(1);
+
+    const deleted = await request(app).delete(`/api/users/me/addresses/${second.body.addresses.find((address: any) => address.label === officeLabel).id}`).set('Authorization', `Bearer ${token}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.addresses.filter((address: any) => address.isDefault)).toHaveLength(1);
+    await prisma.address.delete({ where: { id: firstAddress.id } });
+  });
+
+  it('refuse de supprimer l’adresse d’un autre compte', async () => {
+    const ownerLogin = await request(app).post('/api/auth/dev-login').send({ email: 'user@qayess.ma' });
+    const ownerToken = ownerLogin.body.token;
+    const created = await request(app).post('/api/users/me/addresses').set('Authorization', `Bearer ${ownerToken}`)
+      .send({ label: 'Adresse privée', details: '3 rue de test', city: 'Fès' });
+    const otherLogin = await request(app).post('/api/auth/dev-login').send({ email: 'tech@qayess.ma' });
+    const denied = await request(app).delete(`/api/users/me/addresses/${created.body.addresses.find((address: any) => address.label === 'Adresse privée').id}`).set('Authorization', `Bearer ${otherLogin.body.token}`);
+    expect(denied.status).toBe(404);
+    await prisma.address.deleteMany({ where: { userId: ownerLogin.body.user.id, label: 'Adresse privée' } });
+  });
+
   it('GET /api/products renvoie la liste (lecture publique)', async () => {
     const r = await request(app).get('/api/products');
     expect(r.status).toBe(200);
@@ -86,10 +121,9 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
   });
 
   it('POST /api/products avec token customer => 403 (anti-escalade)', async () => {
-    await request(app).post('/api/auth/request-otp').send({ email: 'user@qayess.ma' });
     const login = await request(app)
-      .post('/api/auth/verify-otp')
-      .send({ email: 'user@qayess.ma', code: '123456' });
+      .post('/api/auth/dev-login')
+      .send({ email: 'user@qayess.ma' });
     const r = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${login.body.token}`)

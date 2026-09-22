@@ -78,7 +78,6 @@ async function sendAdminAlertEmail(
   endpoint: string,
 ): Promise<void> {
   // Import dynamique pour éviter la dépendance circulaire
-  // @ts-expect-error — nodemailer est une dépendance optionnelle (absence gérée au runtime)
   const nodemailer = await import('nodemailer').catch(() => null);
   if (!nodemailer?.default) {
     console.warn('[security] nodemailer non installé, email admin non envoyé');

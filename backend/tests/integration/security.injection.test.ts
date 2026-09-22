@@ -9,8 +9,8 @@ await prisma.$disconnect();
 const app = createApp();
 
 async function login(email: string) {
-  await request(app).post('/api/auth/request-otp').send({ email });
-  const r = await request(app).post('/api/auth/verify-otp').send({ email, code: '123456' });
+  const r = await request(app).post('/api/auth/dev-login').send({ email });
+  expect(r.status).toBe(200);
   return r.body.token as string;
 }
 

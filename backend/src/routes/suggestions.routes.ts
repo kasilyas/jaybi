@@ -1,4 +1,5 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
+import { Router } from '../lib/router.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { addAuditLog } from '../lib/audit.js';
