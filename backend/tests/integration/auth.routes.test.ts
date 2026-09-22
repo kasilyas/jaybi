@@ -1,7 +1,9 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import { createApp } from '../../src/app.js';
 import { prisma } from '../../src/lib/prisma.js';
+import { signToken } from '../../src/lib/jwt.js';
 
 // Test d'intégration : nécessite une base PostgreSQL accessible (DATABASE_URL).
 // La disponibilité est vérifiée au chargement du module (top-level await) car
@@ -129,5 +131,80 @@ describe.runIf(dbAvailable)('auth routes (intégration DB)', () => {
       .set('Authorization', `Bearer ${login.body.token}`)
       .send({ name: 'X', category: 'C' });
     expect(r.status).toBe(403);
+  });
+});
+
+describe.runIf(dbAvailable)('changement de mot de passe (intégration DB)', () => {
+  const email = `pwd-change-${Date.now()}@test.com`;
+  let userId = '';
+
+  afterAll(async () => {
+    if (userId) await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+  });
+
+  it('POST /api/auth/password/request-code sans token => 401', async () => {
+    const r = await request(app).post('/api/auth/password/request-code');
+    expect(r.status).toBe(401);
+  });
+
+  it('flux complet : OTP -> hash persisté -> ancien token rejeté -> token frais valide', async () => {
+    // Compte créé directement en base pour éviter la limite de 1 OTP / 60 s par email.
+    const user = await prisma.user.create({
+      data: { name: 'Pwd Test', email, role: 'customer', tier: 'free', isPremium: false, savingsScore: 0 },
+    });
+    userId = user.id;
+    const oldToken = signToken({ sub: user.id, email, role: 'customer' });
+
+    const requestCode = await request(app)
+      .post('/api/auth/password/request-code')
+      .set('Authorization', `Bearer ${oldToken}`);
+    expect(requestCode.status).toBe(200);
+    expect(requestCode.body.devCode).toBe('123456');
+
+    const wrongCode = await request(app)
+      .post('/api/auth/password/confirm')
+      .set('Authorization', `Bearer ${oldToken}`)
+      .send({ code: '000000', newPassword: 'mot-de-passe-solide' });
+    expect(wrongCode.status).toBe(400);
+    expect(wrongCode.body.error).toBe('WRONG_CODE');
+
+    const weak = await request(app)
+      .post('/api/auth/password/confirm')
+      .set('Authorization', `Bearer ${oldToken}`)
+      .send({ code: '123456', newPassword: 'abc' });
+    expect(weak.status).toBe(400);
+
+    // Garantit que l'iat du token précède la seconde de passwordChangedAt.
+    await new Promise(resolve => setTimeout(resolve, 1100));
+
+    const confirmed = await request(app)
+      .post('/api/auth/password/confirm')
+      .set('Authorization', `Bearer ${oldToken}`)
+      .send({ code: '123456', newPassword: 'mot-de-passe-solide' });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.token).toBeDefined();
+
+    const updated = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(updated!.passwordHash).toBeTruthy();
+    expect(await bcrypt.compare('mot-de-passe-solide', updated!.passwordHash!)).toBe(true);
+    expect(updated!.passwordChangedAt).toBeTruthy();
+
+    const stale = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${oldToken}`);
+    expect(stale.status).toBe(401);
+    expect(stale.body.error).toBe('TOKEN_STALE');
+
+    const fresh = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${confirmed.body.token}`);
+    expect(fresh.status).toBe(200);
+    expect(fresh.body.email).toBe(email);
+  });
+
+  it('le nouveau mot de passe est exigé à la prochaine demande OTP', async () => {
+    const noPassword = await request(app).post('/api/auth/request-otp').send({ email });
+    expect(noPassword.status).toBe(401);
+    expect(noPassword.body.error).toBe('PASSWORD_REQUIRED');
+
+    const wrongPassword = await request(app).post('/api/auth/request-otp').send({ email, password: 'faux' });
+    expect(wrongPassword.status).toBe(401);
+    expect(wrongPassword.body.error).toBe('INVALID_CREDENTIALS');
   });
 });

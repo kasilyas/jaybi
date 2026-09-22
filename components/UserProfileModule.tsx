@@ -10,6 +10,8 @@ interface UserProfileModuleProps {
   products: Product[];
   language: Language;
   onUpdateUser: (userData: Partial<User>) => Promise<void>;
+  onRequestPasswordCode: () => Promise<{ devCode?: string }>;
+  onConfirmPasswordChange: (code: string, newPassword: string) => Promise<void>;
   onCreateAddress: (address: Omit<Address, 'id'>) => Promise<void>;
   onDeleteAddress: (id: string) => Promise<void>;
   onDeleteAccount: () => Promise<void>;
@@ -21,7 +23,7 @@ interface UserProfileModuleProps {
 type PasswordStep = 'idle' | 'editing' | 'verifying' | 'success';
 
 export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
-  user, orders, savedIds, products, language, onUpdateUser, onCreateAddress, onDeleteAddress, onDeleteAccount, onLogout, onClose, onViewOrder
+  user, orders, savedIds, products, language, onUpdateUser, onRequestPasswordCode, onConfirmPasswordChange, onCreateAddress, onDeleteAddress, onDeleteAccount, onLogout, onClose, onViewOrder
 }) => {
   const t = TRANSLATIONS[language];
   const isRTL = language === 'ar';
@@ -82,10 +84,38 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
   };
 
   const startPasswordChange = () => {
-    setProfileError(isRTL ? 'تغيير كلمة المرور غير متاح حالياً.' : 'Le changement de mot de passe est indisponible pour le moment.');
+    setPwdError(''); setNewPwd(''); setConfirmPwd(''); setVerifyCode(''); setSentCode('');
+    setPwdStep('editing');
   };
-  const requestVerificationCode = () => {};
-  const handleVerifyAndChange = () => {};
+  const requestVerificationCode = async () => {
+    setPwdError('');
+    if (newPwd.length < 8) { setPwdError(isRTL ? '8 أحرف على الأقل' : 'Minimum 8 caractères'); return; }
+    if (newPwd !== confirmPwd) { setPwdError(isRTL ? 'كلمتا المرور غير متطابقتين' : 'Les mots de passe ne correspondent pas'); return; }
+    setSavingProfile(true);
+    try {
+      const result = await onRequestPasswordCode();
+      setSentCode(result.devCode ?? '');
+      setPwdStep('verifying');
+    } catch (error: any) {
+      setPwdError(error?.code === 'OTP_RATE_LIMITED'
+        ? (isRTL ? 'عدد كبير من الطلبات، أعد المحاولة لاحقاً' : 'Trop de demandes. Réessayez plus tard.')
+        : (isRTL ? 'تعذر إرسال الرمز' : "Impossible d'envoyer le code. Réessayez."));
+    } finally { setSavingProfile(false); }
+  };
+  const handleVerifyAndChange = async () => {
+    setPwdError('');
+    setSavingProfile(true);
+    try {
+      await onConfirmPasswordChange(verifyCode, newPwd);
+      setPwdStep('success');
+    } catch (error: any) {
+      const code = error?.code;
+      if (code === 'WRONG_CODE') setPwdError(isRTL ? 'رمز غير صحيح' : 'Code incorrect');
+      else if (code === 'OTP_EXPIRED') { setPwdError(isRTL ? 'انتهت صلاحية الرمز' : 'Code expiré. Renvoyez un code.'); setPwdStep('editing'); }
+      else if (code === 'OTP_LOCKED') setPwdError(isRTL ? 'تم القفل بعد محاولات كثيرة' : 'Trop de tentatives. Renvoyez un nouveau code.');
+      else setPwdError(isRTL ? 'تعذر تغيير كلمة المرور' : 'Changement refusé. Réessayez.');
+    } finally { setSavingProfile(false); }
+  };
   const disableAccount = async () => {
     if (!window.confirm(isRTL ? 'هل تريد تعطيل حسابك؟' : 'Désactiver votre compte ? Vous ne pourrez plus vous connecter.')) return;
     setSavingProfile(true); setProfileError('');
@@ -251,7 +281,8 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
                    <div className="flex gap-2">
                       <button 
                         onClick={requestVerificationCode}
-                        className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase"
+                        disabled={savingProfile}
+                        className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase disabled:opacity-50"
                       >
                         {t.sendCode}
                       </button>
@@ -272,6 +303,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
                         {t.codeSentTo} <br/> 
                         <span className="text-emerald-700 lowercase">{user.email}</span>
                       </p>
+                      {sentCode && <p className="text-[9px] font-black text-amber-600 mt-2">DEV — code : {sentCode}</p>}
                    </div>
                    <input 
                      type="text"
@@ -284,7 +316,8 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({
                    {pwdError && <p className="text-[9px] font-black text-rose-500 uppercase text-center">{pwdError}</p>}
                    <button 
                      onClick={handleVerifyAndChange}
-                     className="w-full py-4 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-500/20"
+                     disabled={savingProfile || verifyCode.length !== 6}
+                     className="w-full py-4 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                    >
                      {t.verifyAndChange}
                    </button>

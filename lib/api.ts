@@ -100,6 +100,20 @@ export async function devLogin(email: string): Promise<{ token: string; user: Us
   return result;
 }
 
+/** Demande un code OTP pour autoriser le changement de mot de passe. */
+export async function requestPasswordChangeCode(): Promise<{ sent: boolean; devCode?: string; mailboxUrl?: string }> {
+  return apiFetch('/auth/password/request-code', { method: 'POST' });
+}
+
+/** Confirme le changement de mot de passe. Remplace le token par celui renvoyé. */
+export async function confirmPasswordChange(code: string, newPassword: string): Promise<void> {
+  const result = await apiFetch<{ ok: boolean; token: string }>('/auth/password/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code, newPassword }),
+  });
+  if (result.token) setToken(result.token);
+}
+
 export async function fetchTestAccounts(): Promise<{ email: string; role: string; name: string }[]> {
   const r = await apiFetch<{ accounts: { email: string; role: string; name: string }[] }>('/auth/test-accounts');
   return r.accounts;

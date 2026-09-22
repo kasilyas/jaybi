@@ -88,6 +88,7 @@ model User {
   name            String
   email           String    @unique
   passwordHash    String?
+  passwordChangedAt DateTime?
   role            Role      @default(customer)
   tier            Tier      @default(free)
   isPremium       Boolean   @default(false)

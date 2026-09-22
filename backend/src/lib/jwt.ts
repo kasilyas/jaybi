@@ -5,6 +5,7 @@ export type JwtPayload = {
   sub: string; // user id
   email: string;
   role: string;
+  iat?: number; // seconds since epoch, ajouté par jwt.sign
 };
 
 export function signToken(payload: JwtPayload): string {

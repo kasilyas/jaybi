@@ -124,7 +124,7 @@ Express 4 installé ne traite pas les promesses rejetées ; de nombreuses routes
 - [x] **2.1 Prix effectif cohérent carte → panier → commande (Audit #9, P2).** Règle centralisée, calcul serveur autoritatif et snapshots du prix d'origine, de la remise et du prix final.
 - [x] **2.2 Quota promo dépassable en concurrence (Audit #10, P2).** Réservation conditionnelle atomique dans une transaction sérialisable ; test PostgreSQL avec quatre requêtes simultanées et `currentUses` limité à 1.
 - [x] **2.3 Commande d'offres invalides acceptée (Audit #11, P2).** Produit, prix et enseigne sont contrôlés et testés à la création de commande.
-- [~] **2.4 Profil non persisté (Audit #12, P2).** Nom, adresses et désactivation sont persistés via l'API. Email vérifié et mot de passe restent ouverts.
+- [~] **2.4 Profil non persisté (Audit #12, P2).** Nom, adresses, désactivation et changement de mot de passe par OTP (`passwordChangedAt` invalide les anciens tokens) sont persistés via l'API. Reste la vérification de changement d'email.
 - [x] **2.5 Clé Gemini côté client (Audit #14, P2 — S9 dans AGENTS.md).** Les appels IA passent par des endpoints authentifiés, limités et validés ; la clé reste côté serveur.
 - [x] **2.6 Fallback auth frontend sur erreurs métier (Audit — écart connexe).** Aucun refus API ne crée désormais une session locale.
 - [ ] **2.7 Validation des entrées API généralisée (S10/écart doc).** Zod (ou équivalent) sur **toutes** les routes : body, query, params, pagination (bornes max), tri, filtres. Aujourd'hui partiel.

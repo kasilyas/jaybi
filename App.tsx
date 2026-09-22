@@ -545,6 +545,8 @@ export default function App() {
               products={products} 
               language={language}
               onUpdateUser={async (u) => { setUser(await api.updateMyProfile(u.name ?? user.name)); }}
+              onRequestPasswordCode={() => api.requestPasswordChangeCode()}
+              onConfirmPasswordChange={async (code, newPassword) => { await api.confirmPasswordChange(code, newPassword); }}
               onCreateAddress={async (address) => { setUser(await api.createMyAddress(address)); }}
               onDeleteAddress={async (id) => { setUser(await api.deleteMyAddress(id)); }}
               onLogout={() => { api.clearToken(); setUser(null); setShowProfile(false); addAuditLog('LOGOUT', 'Déconnexion', 'info'); }}

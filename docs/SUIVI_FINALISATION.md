@@ -47,7 +47,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 - Les sauvegardes admin n'affichent plus un succès local après un échec API ; les listes acceptent aussi une réponse serveur vide sans réinjecter les données de démonstration.
 - La création de membres depuis l'administration est de nouveau opérationnelle via une route serveur réservée aux administrateurs, avec validation, unicité de l'email et audit atomique.
 - Le profil persiste le nom, les adresses (ajout, défaut, suppression) et la désactivation. L'interface attend le succès serveur avant de confirmer ou déconnecter.
-- Le changement de mot de passe simulé a été neutralisé ; l'email est en lecture seule tant qu'un vrai flux de vérification n'existe pas.
+- Le changement de mot de passe est réel : OTP envoyé sur l'email du compte (`POST /api/auth/password/request-code` puis `/password/confirm`), nouveau hash bcrypt persisté, `passwordChangedAt` invalide les tokens antérieurs (401 `TOKEN_STALE`) et un token frais est renvoyé pour la session courante. L'email reste en lecture seule tant qu'un vrai flux de vérification n'existe pas.
 
 ### Migration de la base historique
 
@@ -76,7 +76,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 | Build frontend | réussi ; bundle principal ramené à 468 kB |
 | TypeScript/build backend | réussi |
 | Tests backend unitaires | 191/191 |
-| Tests PostgreSQL | 108/108, dont création admin, adresses, concurrence promo, idempotence et revue des rapprochements |
+| Tests PostgreSQL | 111/111, dont création admin, adresses, concurrence promo, idempotence, revue des rapprochements et changement de mot de passe |
 | Intégration ciblée collecte | 21/21 : file, autorisations, import, validation, publication et filtrage des URL source |
 | Audits dépendances de production | 0 vulnérabilité, frontend et backend |
 | Build Docker | 3/3 images construites |
@@ -85,7 +85,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 
 ## Partiellement réalisé
 
-- Le profil persiste le nom, les adresses et permet la désactivation. La vérification d'email et un vrai changement de mot de passe restent à développer.
+- Le profil persiste le nom, les adresses, permet la désactivation et le changement de mot de passe par OTP (tests d'intégration PostgreSQL : flux complet, ancien token rejeté, mot de passe exigé à la reconnexion). La vérification de changement d'email reste à développer.
 - Le stockage OTP est adapté à une instance unique. Redis ou une table dédiée est nécessaire avant un déploiement multi-instance.
 - Le traitement de collecte est repris par un worker. La publication reste volontairement initiée dans le cycle HTTP après validation humaine ; une reprise/rollback de publication reste à ajouter.
 - La validation Zod est renforcée sur les routes modifiées, mais n'est pas encore généralisée à tous les paramètres de toutes les routes.
@@ -96,7 +96,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 1. Reprise/rollback du publisher après coupure (la revue des rapprochements est terminée depuis le 22/09).
 2. Valider les cinq sources de scraping en conditions réelles : couverture, pagination, timeouts, retries, robots.txt, preuves source et alertes de santé.
 3. Généraliser les schémas d'entrée, limites de pagination, journaux d'audit et identifiants de requête.
-4. Ajouter le vrai flux de mot de passe, la vérification de changement d'email et la gestion complète des adresses.
+4. Ajouter la vérification de changement d'email (le flux mot de passe par OTP est en place) et compléter la gestion des adresses.
 5. Exécuter les tests de charge avant ouverture publique.
 6. Configurer les secrets de production, SMTP transactionnel, sauvegardes/restauration, supervision et alertes dans l'infrastructure cible.
 

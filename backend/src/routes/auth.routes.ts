@@ -111,6 +111,69 @@ authRouter.post('/verify-otp', injectionGuard('/api/auth/verify-otp'), async (re
   res.json({ token, user: serializeUser(user) });
 });
 
+const passwordConfirmSchema = z.object({
+  code: z.string().regex(/^\d{6}$/),
+  newPassword: z.string().min(8, 'PASSWORD_TOO_SHORT').max(128),
+}).strict();
+
+/**
+ * POST /auth/password/request-code — envoie un OTP sur l'email du compte
+ * authentifié pour autoriser un changement de mot de passe.
+ */
+authRouter.post('/password/request-code', authenticate, async (req, res: Response) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user!.sub }, select: { email: true } });
+  if (!user) return res.status(404).json({ error: 'NOT_FOUND' });
+
+  const code = generateOtp();
+  const challengeId = otpStore.issue(user.email, code);
+  try {
+    await sendOtpEmail(user.email, code);
+  } catch {
+    otpStore.discard(user.email, challengeId);
+    return res.status(500).json({ error: 'OTP_SEND_FAILED' });
+  }
+
+  const response: any = { sent: true };
+  if (env.devBypass) response.devCode = code;
+  if (env.localMailboxUrl) response.mailboxUrl = env.localMailboxUrl;
+  res.json(response);
+});
+
+/**
+ * POST /auth/password/confirm — vérifie l'OTP et remplace le mot de passe.
+ * Invalide tous les tokens précédents via passwordChangedAt et renvoie un
+ * token frais pour la session courante.
+ */
+authRouter.post('/password/confirm', authenticate, async (req, res: Response) => {
+  const parsed = passwordConfirmSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'INVALID_INPUT', details: parsed.error.flatten() });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.sub },
+    select: { email: true, name: true },
+  });
+  if (!user) return res.status(404).json({ error: 'NOT_FOUND' });
+
+  const verification = otpStore.verify(user.email, parsed.data.code);
+  if (verification !== 'OK') return res.status(verification === 'OTP_LOCKED' ? 429 : 400).json({ error: verification });
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  await prisma.user.update({
+    where: { id: req.user!.sub },
+    data: { passwordHash, passwordChangedAt: new Date() },
+  });
+  await addAuditLog({
+    action: 'PASSWORD_CHANGED',
+    user: user.name,
+    userEmail: user.email,
+    details: 'Mot de passe modifié après vérification OTP',
+    type: 'info',
+  });
+
+  const token = signToken({ sub: req.user!.sub, email: user.email, role: req.user!.role });
+  res.json({ ok: true, token });
+});
+
 /**
  * GET /auth/me — profil de l'utilisateur authentifié.
  */

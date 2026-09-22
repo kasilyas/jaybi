@@ -34,7 +34,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     dbUser = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, isDeleted: true, isSuspended: true },
+      select: { id: true, role: true, isDeleted: true, isSuspended: true, passwordChangedAt: true },
     });
   } catch (error) {
     return next(error);
@@ -44,6 +44,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
   if (dbUser.isSuspended) {
     return res.status(403).json({ error: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu pour activité suspecte. Contactez l\'administrateur.' });
+  }
+  // Invalide les tokens émis avant le dernier changement de mot de passe.
+  if (dbUser.passwordChangedAt && payload.iat && payload.iat < Math.floor(dbUser.passwordChangedAt.getTime() / 1000)) {
+    return res.status(401).json({ error: 'TOKEN_STALE', message: 'Mot de passe modifié : reconnectez-vous.' });
   }
   // Utilise le rôle actuel de la DB, pas celui du token (anti-escalade persistante)
   req.user = { ...payload, role: dbUser.role };
