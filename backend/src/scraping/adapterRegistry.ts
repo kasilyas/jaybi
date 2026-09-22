@@ -53,11 +53,9 @@ export class AdapterRegistry {
     const config = await prisma.syncConfig.findUnique({ where: { adapter: name } });
     if (config && !config.enabled) return [];
 
-    // Applique la config
-    if (config) {
-      adapter['maxPages'] = config.maxPages;
-      adapter['rateLimitMs'] = config.rateLimitMs;
-    }
+    // Applique la config persistée, y compris l'URL de source. Sans cela,
+    // l'administration donnait l'impression de modifier la source sans effet.
+    if (config) adapter.configure({ sourceUrl: config.sourceUrl, maxPages: config.maxPages, rateLimitMs: config.rateLimitMs });
 
     return adapter.scrape();
   }

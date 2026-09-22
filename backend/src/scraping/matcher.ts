@@ -1,3 +1,4 @@
+import { compatible } from './compatibility.js';
 import { prisma } from '../lib/prisma.js';
 import { NormalizedProduct, MatchResult } from './types.js';
 
@@ -32,9 +33,9 @@ export async function matchProduct(normalized: NormalizedProduct): Promise<Match
   if (normalized.ean) {
     const byEan = await prisma.product.findFirst({
       where: { ean: normalized.ean, isDeleted: false },
-      select: { id: true },
+      include: { brand: true },
     });
-    if (byEan) return { productId: byEan.id, confidence: 1.0, method: 'ean' };
+    if (byEan) return compatible(normalized, byEan) ? { productId: byEan.id, confidence: 1.0, method: 'ean' } : { productId: null, confidence: 1, method: 'none', reviewCandidate: { id: byEan.id, name: byEan.name, reason: 'Identifiant identique mais format ou marque à vérifier' } };
   }
 
   // 2. Exact match on brand + name
@@ -50,30 +51,28 @@ export async function matchProduct(normalized: NormalizedProduct): Promise<Match
           name: { equals: normalized.name, mode: 'insensitive' },
           isDeleted: false,
         },
-        select: { id: true },
+        include: { brand: true },
       });
-      if (exact) return { productId: exact.id, confidence: 0.95, method: 'exact' };
+      if (exact && compatible(normalized, exact)) return { productId: exact.id, confidence: 0.95, method: 'exact' };
     }
   }
 
-  // 3. Fuzzy match on name
-  const candidates = await prisma.product.findMany({
-    where: { isDeleted: false },
-    select: { id: true, name: true },
-    take: 500,
-  });
-
-  let bestMatch: { id: string; score: number } | null = null;
-  for (const c of candidates) {
-    const score = similarity(normalized.name, c.name);
-    if (!bestMatch || score > bestMatch.score) {
-      bestMatch = { id: c.id, score };
+  // Paginated stable traversal: no silent truncation at 500 products.
+  let cursor: string | undefined;
+  let best: { id: string; name: string; score: number } | undefined;
+  while (true) {
+    const candidates = await prisma.product.findMany({
+      where: { isDeleted: false }, include: { brand: true }, orderBy: { id: 'asc' },
+      take: 500, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    for (const candidate of candidates) {
+      if (!compatible(normalized, candidate)) continue;
+      const score = similarity(normalized.name, candidate.name);
+      if (score >= 0.85 && (!best || score > best.score)) best = { id: candidate.id, name: candidate.name, score };
     }
+    if (candidates.length < 500) break;
+    cursor = candidates[candidates.length - 1].id;
   }
-
-  if (bestMatch && bestMatch.score >= 0.85) {
-    return { productId: bestMatch.id, confidence: bestMatch.score, method: 'fuzzy' };
-  }
-
+  if (best) return { productId: null, confidence: best.score, method: 'fuzzy', reviewCandidate: { id: best.id, name: best.name, reason: 'Ressemblance de nom : validation humaine nécessaire' } };
   return { productId: null, confidence: 0, method: 'none' };
 }

@@ -7,6 +7,7 @@ export interface ScrapedProduct {
   scrapedAt: Date;
   name: string;
   brand?: string;
+  seller?: string;
   category?: string;
   image?: string;
   unit?: string;
@@ -24,6 +25,7 @@ export interface ScrapedProduct {
 export interface NormalizedProduct {
   name: string;
   brand?: string;
+  seller?: string;
   category?: string;
   image?: string;
   unit: 'kg' | 'L' | 'unit' | 'g' | 'ml';
@@ -45,6 +47,7 @@ export interface MatchResult {
   productId: string | null;
   confidence: number;
   method: 'ean' | 'exact' | 'fuzzy' | 'none';
+  reviewCandidate?: { id: string; name: string; reason: string };
 }
 
 export interface PriceChange {
@@ -59,6 +62,10 @@ export interface PriceChange {
   originalPrice?: number;
   promotionLabel?: string;
   promotionExpiresAt?: Date;
+  source?: string;
+  sourceUrl?: string;
+  seller?: string;
+  scrapedAt?: Date;
 }
 
 export interface NewProductChange {
@@ -66,6 +73,7 @@ export interface NewProductChange {
 }
 
 export interface SyncChanges {
+  reviewRequired?: { normalized: NormalizedProduct; candidate: { id: string; name: string; reason: string }; confidence: number }[];
   newProducts: NewProductChange[];
   priceChanges: PriceChange[];
   promotions: PriceChange[];

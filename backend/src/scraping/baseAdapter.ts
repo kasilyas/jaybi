@@ -13,6 +13,19 @@ export abstract class BaseAdapter {
   protected timeoutMs = 30000;
   protected userAgent = 'JaybiBot/1.0 (+contact@jaybi.ma)';
 
+  /** Configuration appliquée par le registre, jamais depuis le navigateur. */
+  configure(options: { sourceUrl?: string | null; maxPages?: number; rateLimitMs?: number }): void {
+    if (options.sourceUrl) {
+      const url = new URL(options.sourceUrl);
+      if (url.protocol !== 'https:') throw new Error('SOURCE_URL_MUST_USE_HTTPS');
+      this.baseUrl = url.toString().replace(/\/$/, '');
+    }
+    if (options.maxPages !== undefined) this.maxPages = options.maxPages;
+    if (options.rateLimitMs !== undefined) this.rateLimitMs = options.rateLimitMs;
+  }
+
+  protected baseUrl = '';
+
   abstract scrape(): Promise<ScrapedProduct[]>;
 
   protected async checkRobotsTxt(baseUrl: string): Promise<boolean> {

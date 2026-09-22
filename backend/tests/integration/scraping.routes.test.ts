@@ -9,8 +9,8 @@ await prisma.$disconnect();
 const app = createApp();
 
 async function login(email: string) {
-  await request(app).post('/api/auth/request-otp').send({ email });
-  const r = await request(app).post('/api/auth/verify-otp').send({ email, code: '123456' });
+  const r = await request(app).post('/api/auth/dev-login').send({ email });
+  expect(r.status).toBe(200);
   return r.body.token as string;
 }
 
@@ -90,6 +90,15 @@ describe.runIf(dbAvailable)('Scraping routes — intégration (dry-run, approve,
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ adapter: 'csv_import' });
     expect(r.status).toBe(400);
+  });
+
+  it('POST /api/scraping/run refuse un adaptateur inconnu', async () => {
+    const r = await request(app)
+      .post('/api/scraping/run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ adapter: 'unknown_source' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toBe('INVALID_ADAPTER');
   });
 
   // --- Import CSV ---
@@ -206,6 +215,31 @@ describe.runIf(dbAvailable)('Scraping routes — intégration (dry-run, approve,
       .send({ enabled: true });
     expect(r.status).toBe(200);
     expect(r.body.enabled).toBe(true);
+  });
+
+  it('POST /api/scraping/run met une collecte Marjane en file sans l’exécuter en HTTP', async () => {
+    const r = await request(app)
+      .post('/api/scraping/run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ adapter: 'marjane' });
+    expect(r.status).toBe(202);
+    expect(r.body.run.status).toBe('pending');
+    expect(r.body.run.mode).toBe('full_scrape');
+  });
+
+  it('refuse une URL de source non autorisée ou non HTTPS', async () => {
+    const insecure = await request(app)
+      .put('/api/scraping/config/marjane')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sourceUrl: 'http://api.apify.com/v2/datasets/example/items' });
+    expect(insecure.status).toBe(400);
+
+    const untrusted = await request(app)
+      .put('/api/scraping/config/marjane')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sourceUrl: 'https://example.test/products' });
+    expect(untrusted.status).toBe(400);
+    expect(untrusted.body.error).toBe('SOURCE_NOT_ALLOWED');
   });
 
   // --- Run detail ---

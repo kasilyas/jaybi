@@ -1,3 +1,4 @@
+import { HttpError } from '../middleware/errors.js';
 import { prisma } from '../lib/prisma.js';
 import { SyncChanges } from './types.js';
 import { addAuditLog } from '../lib/audit.js';
@@ -17,6 +18,8 @@ export async function publishChangesDirect(
   adminEmail: string,
   adapter: string,
 ): Promise<{ productsNew: number; pricesUpdated: number }> {
+  if (changes.reviewRequired?.length) throw new HttpError(409, 'MATCH_REVIEW_REQUIRED');
+  if (!changes.newProducts.length && !changes.priceChanges.length) throw new HttpError(400, 'EMPTY_SYNC');
   let productsNew = 0;
   let pricesUpdated = 0;
 
@@ -118,6 +121,10 @@ export async function publishChangesDirect(
             promotionExpiresAt: n.promotionExpiresAt,
             available: n.available,
             lastUpdated: new Date(),
+            source: n.source,
+            sourceUrl: n.sourceUrl,
+            seller: n.seller,
+            scrapedAt: n.scrapedAt,
           },
         });
         pricesUpdated++;
@@ -131,6 +138,10 @@ export async function publishChangesDirect(
             originalPrice: n.originalPrice,
             promotionExpiresAt: n.promotionExpiresAt,
             available: n.available,
+            source: n.source,
+            sourceUrl: n.sourceUrl,
+            seller: n.seller,
+            scrapedAt: n.scrapedAt,
           },
         });
         productsNew++;
@@ -155,6 +166,10 @@ export async function publishChangesDirect(
             originalPrice: pc.originalPrice,
             promotionExpiresAt: pc.promotionExpiresAt,
             available: pc.newAvailable,
+            source: pc.source,
+            sourceUrl: pc.sourceUrl,
+            seller: pc.seller,
+            scrapedAt: pc.scrapedAt,
           },
         });
         pricesUpdated++;
@@ -180,6 +195,10 @@ export async function publishChangesDirect(
             promotionExpiresAt: pc.promotionExpiresAt,
             available: pc.newAvailable,
             lastUpdated: new Date(),
+            source: pc.source,
+            sourceUrl: pc.sourceUrl,
+            seller: pc.seller,
+            scrapedAt: pc.scrapedAt,
           },
         });
         pricesUpdated++;

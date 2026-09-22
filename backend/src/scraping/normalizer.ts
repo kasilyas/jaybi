@@ -43,6 +43,7 @@ export function normalizeProduct(scraped: ScrapedProduct): NormalizedProduct {
   return {
     name: cleanName(scraped.name),
     brand: scraped.brand ? cleanName(scraped.brand) : undefined,
+    seller: scraped.seller ? cleanName(scraped.seller) : undefined,
     category: scraped.category,
     image: scraped.image,
     unit: normalizeUnit(scraped.unit),

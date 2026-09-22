@@ -11,10 +11,15 @@ export async function detectChanges(normalizedProducts: NormalizedProduct[]): Pr
   const promotions: any[] = [];
   const unavailability: any[] = [];
   let matchedCount = 0;
+  const reviewRequired: NonNullable<SyncChanges['reviewRequired']> = [];
 
   for (const np of normalizedProducts) {
     const match: MatchResult = await matchProduct(np);
 
+    if (match.reviewCandidate) {
+      reviewRequired.push({ normalized: np, candidate: match.reviewCandidate, confidence: match.confidence });
+      continue;
+    }
     if (!match.productId) {
       newProducts.push({ normalized: np });
       continue;
@@ -46,6 +51,10 @@ export async function detectChanges(normalizedProducts: NormalizedProduct[]): Pr
         originalPrice: np.originalPrice,
         promotionLabel: np.promotionLabel,
         promotionExpiresAt: np.promotionExpiresAt,
+        source: np.source,
+        sourceUrl: np.sourceUrl,
+        seller: np.seller,
+        scrapedAt: np.scrapedAt,
       });
       continue;
     }
@@ -67,6 +76,10 @@ export async function detectChanges(normalizedProducts: NormalizedProduct[]): Pr
         originalPrice: np.originalPrice,
         promotionLabel: np.promotionLabel,
         promotionExpiresAt: np.promotionExpiresAt,
+        source: np.source,
+        sourceUrl: np.sourceUrl,
+        seller: np.seller,
+        scrapedAt: np.scrapedAt,
       };
       priceChanges.push(change);
       if (hasPromo) promotions.push(change);
@@ -75,6 +88,7 @@ export async function detectChanges(normalizedProducts: NormalizedProduct[]): Pr
   }
 
   return {
+    reviewRequired,
     newProducts,
     priceChanges,
     promotions,

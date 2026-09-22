@@ -39,6 +39,7 @@ export class MarjaneApifyAdapter extends BaseAdapter {
       if (!name) return null;
 
       const ext = item.extension_attributes || {};
+      const seller = ext.seller_name || ext.seller?.name || item.seller_name || undefined;
       const regularPrice = parseFloat(ext.regular_price || item.price || '0');
       const finalPrice = parseFloat(ext.final_price || item.price || '0');
       const price = finalPrice > 0 ? finalPrice : regularPrice;
@@ -88,6 +89,7 @@ export class MarjaneApifyAdapter extends BaseAdapter {
         scrapedAt: new Date(),
         name,
         brand: ext.brand_name || undefined,
+        seller,
         category,
         image,
         ean,
