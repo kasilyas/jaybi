@@ -68,7 +68,8 @@ npm run dev  # http://localhost:3000
 |----------|--------|-------------|
 | `VITE_API_URL` | `http://localhost:4000/api` | URL de l'API backend |
 | `VITE_DEV_BYPASS` | `true` | Bypass OTP en dev (code fixe 123456) |
-| `VITE_GEMINI_API_KEY` | — | Clé API Google Gemini (smart search) |
+| `GEMINI_API_KEY` | — | Clé API Google Gemini, serveur uniquement |
+| `GEMINI_MODEL` | `gemini-3-flash-preview` | Modèle utilisé par les routes IA |
 
 ### Backend (`.env`)
 | Variable | Défaut | Description |
@@ -84,6 +85,9 @@ npm run dev  # http://localhost:3000
 | `SMTP_USER` | — | Utilisateur SMTP |
 | `SMTP_PASS` | — | Mot de passe SMTP |
 | `SMTP_FROM` | `Jaybi <no-reply@jaybi.ma>` | Expéditeur OTP |
+| `SMTP_REQUIRE_TLS` | `true` en production | Exiger STARTTLS pour un fournisseur SMTP ; `false` pour Mailpit local |
+
+Avec Docker local, Mailpit est démarré automatiquement : ouvrez `http://localhost:8025` après une demande de connexion pour lire le code OTP. Cette boîte ne transmet aucun message vers Internet.
 
 ### Règles de sécurité
 - `DEV_BYPASS=true` est **impossible** quand `NODE_ENV=production`

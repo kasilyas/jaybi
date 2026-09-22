@@ -22,7 +22,7 @@ Plateforme de comparaison de prix grande surface au Maroc. Permet aux consommate
 | **Backend** | Node.js, Express, TypeScript, Prisma 5.22 |
 | **Base de données** | PostgreSQL 16 |
 | **Auth** | JWT + OTP email (bcrypt, dev bypass pour tests) |
-| **IA** | Google Gemini (`@google/genai`) — parsing listes, suggestions |
+| **IA** | Google Gemini via l'API backend — parsing listes, suggestions |
 | **Tests** | Vitest, Supertest (129 tests : 70 frontend + 59 backend) |
 | **CI/CD** | GitHub Actions (typecheck + tests + build + PostgreSQL service) |
 | **Docker** | Docker Compose (db + api + web) |

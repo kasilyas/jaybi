@@ -11,7 +11,7 @@
 - Copier `.env.example` en `.env.local`.
 - `VITE_DEV_BYPASS=true` active : bypass 2FA (code `123456`), affichage du code OTP,
   et liste d'auto-connexion de test dans AuthModal. **Jamais en production.**
-- `VITE_GEMINI_API_KEY` — clé Gemini côté client (MVP). Sera déplacée vers le backend en v0.2.
+- `GEMINI_API_KEY` — clé Gemini côté serveur uniquement ; `GEMINI_MODEL` sélectionne le modèle.
 
 ## Architecture (v0.1 — frontend durci)
 - État global dans `App.tsx`, logique métier extraite dans `lib/` (testable) :
