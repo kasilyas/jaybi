@@ -8,7 +8,7 @@
  * 3. Carrefour (promomaroc.com — 20+ produits)
  * 4. BIM (cataloguebim.com — 20+ produits)
  */
-import { MarjaneApifyAdapter } from '../src/scraping/adapters/marjane.apify.adapter.js';
+import { MarjaneAlgoliaAdapter } from '../src/scraping/adapters/marjane.algolia.adapter.js';
 import { MyMarketAdapter } from '../src/scraping/adapters/mymarket.adapter.js';
 import { CarrefourAdapter } from '../src/scraping/adapters/carrefour.adapter.js';
 import { BimAdapter } from '../src/scraping/adapters/bim.adapter.js';
@@ -107,8 +107,8 @@ async function main() {
 
   const totalStart = Date.now();
 
-  // 1. Marjane — Apify (TOUS les produits, 20 pages = 20000 max)
-  const marjane = await scrapeSource('marjane', new MarjaneApifyAdapter(), 20);
+  // 1. Marjane — index Algolia public (catégories épicerie/hygiène/entretien)
+  const marjane = await scrapeSource('marjane', new MarjaneAlgoliaAdapter());
 
   // 2. MyMarket — API Shopify (10 pages = 2500 produits)
   const mymarket = await scrapeSource('mymarket', new MyMarketAdapter(), 10);

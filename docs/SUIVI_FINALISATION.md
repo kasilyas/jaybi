@@ -94,7 +94,7 @@ Ce document sépare les corrections réalisées, leurs preuves et les travaux en
 ## Restant avant mise en production publique
 
 1. Reprise/rollback du publisher après coupure (la revue des rapprochements est terminée depuis le 22/09).
-2. Valider les cinq sources de scraping en conditions réelles : couverture, pagination, timeouts, retries, robots.txt, preuves source et alertes de santé.
+2. Validation live des sources effectuée (23/09) : **Marjane OK via l'index Algolia public** (25 555 produits, remplace le dataset Apify expiré ; EAN absent de l'index), **MyMarket OK** (2 897), **Carrefour OK** (22), **BIM OK** (5, catalogue courant), **Aswak KO** (SPA — 0 produit même via Chromium ; sélecteurs/API à re-sonder ou CSV). Reste : alertes de santé par source et refus explicite de sync vide.
 3. Généraliser les schémas d'entrée, limites de pagination, journaux d'audit et identifiants de requête.
 4. Ajouter la vérification de changement d'email (le flux mot de passe par OTP est en place) et compléter la gestion des adresses.
 5. Exécuter les tests de charge avant ouverture publique.

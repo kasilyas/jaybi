@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { MarjaneApifyAdapter } from '../src/scraping/adapters/marjane.apify.adapter.js';
+import { MarjaneAlgoliaAdapter } from '../src/scraping/adapters/marjane.algolia.adapter.js';
 import { MyMarketAdapter } from '../src/scraping/adapters/mymarket.adapter.js';
 import { CarrefourAdapter } from '../src/scraping/adapters/carrefour.adapter.js';
 import { BimAdapter } from '../src/scraping/adapters/bim.adapter.js';
@@ -17,77 +17,78 @@ function loadFixture(name: string): string {
 describe('Adaptateurs scraping — parsing avec fixtures HTML (sources vérifiées)', () => {
 
   // ============================================================
-  // Marjane — Apify dataset (marjanemall.ma, contourne Cloudflare)
+  // Marjane — index Algolia public (marjanemall.ma)
   // ============================================================
-  describe('MarjaneApifyAdapter (marjanemall.ma via Apify)', () => {
-    const adapter = new MarjaneApifyAdapter();
+  describe('MarjaneAlgoliaAdapter (index Algolia marjanemall.ma)', () => {
+    const adapter = new MarjaneAlgoliaAdapter();
 
-    const sampleApifyProduct = {
+    const sampleAlgoliaHit = {
+      objectID: '887792',
       name: 'Gum Dentifrice Original White Blancheur 75ml',
       sku: 'AUC0070942303132',
-      price: 103.5,
-      productUrl: 'https://www.marjanemall.ma/p/gum-dentifrice-original-white-blancheur-75ml-auc0070942303132',
-      extension_attributes: {
-        regular_price: '103.50',
-        final_price: '63.48',
-        eco_discount: 'Eco. de 38%',
-        brand_name: 'GUM',
-        stock_item: { is_in_stock: true, qty: 150 },
-        item_categories: [{
-          item_category: 'Default Category',
-          item_category2: 'Hygiène dentaire',
-          item_category3: 'Hygiène',
-          item_category4: 'Beauté - Santé',
-        }],
+      url: 'https://payment.marjanemall.ma/p/gum-dentifrice-auc0070942303132',
+      image_url: 'https://cdnprd.marjanemall.ma/img.webp',
+      main_image: 'https://cdnprd.marjanemall.ma/img-main.webp',
+      maas_brand: 'GUM',
+      mm_seller: 'Marjane',
+      maas_offer_seller_name: 'Marjane',
+      is_salable: 1,
+      discount_percent: 39,
+      categories: {
+        level0: ['Beauté - Santé'],
+        level2: ['Beauté - Santé|Hygiène|Hygiène dentaire'],
       },
-      custom_attributes: [
-        { attribute_code: 'maas_gtin', value: '0070942303132' },
-        { attribute_code: 'main_image', value: 'https://cdnprd.marjanemall.ma/img.webp' },
-      ],
-      media_gallery_entries: [{ file: 'https://cdnprd.marjanemall.ma/img.webp' }],
+      price: {
+        MAD: {
+          default: 63.48,
+          default_formated: '63,48 Dh',
+          default_original_formated: '103,50 Dh',
+        },
+      },
     };
 
-    it('parse un produit Apify avec promo', () => {
-      const product = adapter.parseApifyProduct(sampleApifyProduct);
+    it('parse un hit Algolia avec promo', () => {
+      const product = adapter.parseAlgoliaHit(sampleAlgoliaHit);
       expect(product).toBeDefined();
       expect(product!.name).toBe('Gum Dentifrice Original White Blancheur 75ml');
-      expect(product!.price).toBe(63.48); // final_price
-      expect(product!.originalPrice).toBe(103.5); // regular_price
+      expect(product!.price).toBe(63.48);
+      expect(product!.originalPrice).toBe(103.5);
       expect(product!.brand).toBe('GUM');
-      expect(product!.ean).toBe('0070942303132');
+      expect(product!.image).toBe('https://cdnprd.marjanemall.ma/img-main.webp');
       expect(product!.available).toBe(true);
       expect(product!.storeName).toBe('Marjane');
-      expect(product!.promotionLabel).toContain('38');
+      expect(product!.promotionLabel).toContain('39');
+      expect(product!.category).toBe('Hygiène dentaire');
     });
 
-    it('parse un produit sans promo (final_price = regular_price)', () => {
-      const noPromo = JSON.parse(JSON.stringify(sampleApifyProduct));
-      noPromo.extension_attributes.final_price = '103.50';
-      noPromo.extension_attributes.eco_discount = '';
-      const product = adapter.parseApifyProduct(noPromo);
-      expect(product!.price).toBe(103.5);
+    it('parse un produit sans promo', () => {
+      const noPromo = JSON.parse(JSON.stringify(sampleAlgoliaHit));
+      delete noPromo.price.MAD.default_original_formated;
+      noPromo.discount_percent = 0;
+      const product = adapter.parseAlgoliaHit(noPromo);
+      expect(product!.price).toBe(63.48);
       expect(product!.originalPrice).toBeUndefined();
       expect(product!.promotionLabel).toBeUndefined();
     });
 
     it('parse un produit en rupture de stock', () => {
-      const oos = JSON.parse(JSON.stringify(sampleApifyProduct));
-      oos.extension_attributes.stock_item.is_in_stock = false;
-      const product = adapter.parseApifyProduct(oos);
+      const oos = JSON.parse(JSON.stringify(sampleAlgoliaHit));
+      oos.is_salable = 0;
+      const product = adapter.parseAlgoliaHit(oos);
       expect(product!.available).toBe(false);
     });
 
-    it('extrait la catégorie correcte', () => {
-      const product = adapter.parseApifyProduct(sampleApifyProduct);
-      expect(product!.category).toBe('Hygiène');
+    it('extrait le vendeur marketplace', () => {
+      const product = adapter.parseAlgoliaHit(sampleAlgoliaHit);
+      expect(product!.seller).toBe('Marjane');
     });
 
     it('retourne null pour produit sans nom', () => {
-      expect(adapter.parseApifyProduct({ price: 10 })).toBeNull();
+      expect(adapter.parseAlgoliaHit({ objectID: '1', sku: 'X' })).toBeNull();
     });
 
     it('retourne null pour produit sans prix', () => {
-      expect(adapter.parseApifyProduct({ name: 'Test', extension_attributes: {} })).toBeNull();
+      expect(adapter.parseAlgoliaHit({ objectID: '1', name: 'Test', price: { MAD: {} } })).toBeNull();
     });
 
     it('nom et sourceType corrects', () => {

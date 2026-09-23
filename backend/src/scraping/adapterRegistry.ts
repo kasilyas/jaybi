@@ -1,5 +1,5 @@
 import { BaseAdapter } from './baseAdapter.js';
-import { MarjaneApifyAdapter } from './adapters/marjane.apify.adapter.js';
+import { MarjaneAlgoliaAdapter } from './adapters/marjane.algolia.adapter.js';
 import { MyMarketAdapter } from './adapters/mymarket.adapter.js';
 import { CarrefourAdapter } from './adapters/carrefour.adapter.js';
 import { BimAdapter } from './adapters/bim.adapter.js';
@@ -12,7 +12,8 @@ import { prisma } from '../lib/prisma.js';
  * Permet d'activer/désactiver des sources depuis la config en base.
  *
  * Adaptateurs (sources vérifiées 2026) :
- * - marjane   : Apify dataset → marjanemall.ma (marketplace, 19000+ produits)
+ * - marjane   : index Algolia public de marjanemall.ma (remplace le dataset
+ *               Apify expiré ; périmètre épicerie/hygiène/entretien)
  * - mymarket  : mymarket.ma API Shopify (10000 produits)
  * - aswak     : aswakdelivery.com (SPA, 6000 articles — peut nécessiter Playwright)
  * - bim       : cataloguebim.com (agrégateur — BIM n'a pas d'e-commerce)
@@ -22,7 +23,7 @@ export class AdapterRegistry {
   private adapters = new Map<string, BaseAdapter>();
 
   constructor() {
-    this.register(new MarjaneApifyAdapter());
+    this.register(new MarjaneAlgoliaAdapter());
     this.register(new MyMarketAdapter());
     this.register(new AswakAdapter());
     this.register(new BimAdapter());

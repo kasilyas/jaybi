@@ -169,7 +169,7 @@ export class AswakPlaywrightAdapter {
       }
     `;
 
-    const result = await page.evaluate(extractFn);
-    return result as ScrapedProduct[];
+    const result = await page.evaluate(`(${extractFn})()`);
+    return (result ?? []) as ScrapedProduct[];
   }
 }

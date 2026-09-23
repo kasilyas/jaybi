@@ -142,11 +142,11 @@ Le scraping est le cœur du projet : robustesse technique + simplicité d'usage 
 
 | Source | Adaptateur | État | Reste à faire |
 |---|---|---|---|
-| Marjane | `marjane.apify.adapter.ts` | 19 312 produits importés (dataset `ffurZD3yqDhvhSjXx`) | [ ] Pagination dynamique jusqu'à l'item-count réel ; [ ] relances planifiées ; [ ] gestion dataset expiré/indisponible |
-| MyMarket | `mymarket.adapter.ts` | 2 500 produits (Shopify JSON) | [ ] Confirmer la pagination complète (~10 000 produits annoncés) |
-| Carrefour | `carrefour.adapter.ts` | 27 produits (promomaroc) | [ ] Couvrir tous les catalogues atteignables ; [ ] détecter les nouveaux catalogues |
-| BIM | `bim.adapter.ts` | 20 produits, noms bruités | [ ] Documenter la limite du parsing texte ; [ ] évaluer OCR/CSV/source alternative |
-| Aswak | `aswak.adapter.ts` | adaptateur Playwright non validé en live | [ ] Valider le scraping SPA réel ; [ ] mesurer la couverture (~6 000 articles annoncés) |
+| Marjane | `marjane.algolia.adapter.ts` | **25 555 produits validés en live** (index Algolia public, ~2,5 min) : 100 % prix/images, 69 % promos | [x] Remplacé le dataset Apify expiré (HTTP 404) par l'index Algolia du site ; [~] ~1 100 hits perdus dans des buckets saturés (journalisés) ; [ ] EAN absent de l'index (matching par nom+marque+format) |
+| MyMarket | `mymarket.adapter.ts` | **2 897 produits validés en live** (Shopify JSON, 27 s) | [x] Pagination complète confirmée (12 pages) |
+| Carrefour | `carrefour.adapter.ts` | **22 produits validés en live** (promomaroc, 91 % promos) | [ ] Couvrir tous les catalogues atteignables ; [ ] détecter les nouveaux catalogues |
+| BIM | `bim.adapter.ts` | **5 produits validés en live** (catalogue courant uniquement) | [ ] Documenter la limite du parsing texte ; [ ] évaluer OCR/CSV/source alternative |
+| Aswak | `aswak.adapter.ts` | **0 produit — SPA non résolue** | [x] Bug `page.evaluate` corrigé dans l'adaptateur Playwright ; [ ] Le site ne livre aucun produit même rendu par Chromium : sélecteurs/API à re-sonder ou import CSV |
 
 - [ ] Pour chaque source : retry, timeout, rate-limit, respect robots.txt, et **refus de publier un résultat vide comme une sync réussie**.
 - [ ] Statut de santé par source (dernier succès, nb produits, anomalies) exposé au Sync Center + alerte sur sync vide/échouée.
@@ -261,7 +261,7 @@ Règle projet : chaque module a des tests ; les tests ignorés ne comptent pas c
 
 - [ ] **10.1 Correctif contexte build** (§1.7) puis build/start/migrations/healthchecks validés (P0-4).
 - [ ] **10.2 Séparation des environnements** : dev / QA / prod avec `.env` distincts ; `DEV_BYPASS=false` et comptes de test absents en prod.
-- [ ] **10.3 Variables requises documentées** : `DATABASE_URL`, `JWT_SECRET`, SMTP, `CORS_ORIGIN`, URLs API/front, Apify — validation au démarrage (fail-fast).
+- [ ] **10.3 Variables requises documentées** : `DATABASE_URL`, `JWT_SECRET`, SMTP, `CORS_ORIGIN`, URLs API/front — validation au démarrage (fail-fast). Apify n'est plus requis (Marjane passe par l'index Algolia public).
 - [ ] **10.4 HTTPS/DNS** : reverse proxy TLS, origines de confiance, pas d'exposition directe des ports internes.
 - [ ] **10.5 Conteneurs durcis** : utilisateur non-root, privilèges minimaux, images épinglées.
 - [ ] **10.6 Sauvegarde/restauration** : sauvegarde PostgreSQL planifiée + **restauration réellement exécutée** sur cible isolée ; RPO/RTO définis.
